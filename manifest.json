@@ -1,0 +1,10 @@
+{
+    "display_name": "Light Styler",
+    "loading_order": 999,
+    "requires": [],
+    "js": "index.js",
+    "author": "aiarchaea",
+    "version": "1.0.0",
+    "homePage": ""
+}
+

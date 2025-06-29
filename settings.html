@@ -1,0 +1,58 @@
+<!-- LightStyler Extension Settings Drawer v17 -->
+<div class="example-extension-settings">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>LightStyler</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content">
+            <div class="example-extension_block flex-container" style="justify-content: space-between;">
+                <label for="lightstyler_whisper_light">Whisper Light Theme</label>
+                <input id="lightstyler_whisper_light" type="checkbox" />
+            </div>
+            <hr class="sysHR" />
+            <div id="lightstyler_theme_settings">
+                <label>Avatar Size Mode:</label>
+                <div class="flex-container">
+                    <input type="radio" id="lightstyler_large_avatar_mode" name="avatar_mode" value="large" checked>
+                    <label for="lightstyler_large_avatar_mode">Large</label>
+                    <input type="radio" id="lightstyler_small_avatar_mode" name="avatar_mode" value="small">
+                    <label for="lightstyler_small_avatar_mode">Small</label>
+                </div>
+                <div id="lightstyler_custom_inputs" style="margin-top: 15px;">
+                    <div class="example-extension_block flex-container" style="justify-content: space-between; align-items: center;">
+                        <label for="lightstyler_avatar_width">Avatar Width (px)</label>
+                        <input id="lightstyler_avatar_width" type="number" class="text_pole" style="width:80px;" maxlength="4">
+                    </div>
+                    <div class="example-extension_block flex-container" style="justify-content: space-between; align-items: center;">
+                        <label for="lightstyler_edit_offset">Edit Button Offset (px)</label>
+                        <input id="lightstyler_edit_offset" type="number" class="text_pole" style="width:80px;" maxlength="4">
+                    </div>
+                    <div class="example-extension_block flex-container" style="justify-content: space-between; align-items: center; margin-top: 5px;">
+                        <small class="example-extension_description" style="flex-grow: 1; text-align: left; margin-right: 10px;">
+                            Adjust offset to position edit buttons correctly.
+                        </small>
+                        <button id="lightstyler_reset_button" class="menu_button" style="width:60px; padding:2px 8px;">Reset</button>
+                    </div>
+
+                    <hr class="sysHR" style="margin: 15px 0;" />
+
+                    <div class="example-extension_block flex-container" style="justify-content: space-between; align-items: center;">
+                        <label for="lightstyler_persona_banner_pos">Persona Image Y-Position (%)</label>
+                        <input id="lightstyler_persona_banner_pos" type="number" class="text_pole" min="0" max="100" style="width:80px;" maxlength="5">
+                    </div>
+                    <div class="example-extension_block flex-container" style="justify-content: space-between; align-items: center;">
+                        <label for="lightstyler_character_banner_pos">Character Image Y-Position (%)</label>
+                        <input id="lightstyler_character_banner_pos" type="number" class="text_pole" min="0" max="100" style="width:80px;" maxlength="5">
+                    </div>
+                    <div class="example-extension_block flex-container" style="justify-content: space-between; align-items: center; margin-top: 5px;">
+                        <small class="example-extension_description" style="flex-grow: 1; text-align: left; margin-right: 10px;">
+                            Adjust Y-position to frame the banner image.
+                        </small>
+                        <button id="lightstyler_bannerpos_reset_button" class="menu_button" style="width:60px; padding:2px 8px;">Reset</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
