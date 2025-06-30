@@ -8,7 +8,7 @@ avatar layouts, character banners, and alternative image management.
 Mobile Layout
 ![Mobile](https://github.com/user-attachments/assets/bddff92e-23f8-49ff-989d-5b26cba312ce)
 
-PC Layout - Custom or Avatar Banner
+PC Layout - Custom or Avatar Banner (Left Avatar Size can be changed)
 ![SkyBanner](https://github.com/user-attachments/assets/5dd5067e-a2fe-455b-972b-2c2e8bf07440)
 ![AvatarBanner](https://github.com/user-attachments/assets/d836a3db-2d28-4f74-81ec-ff9a92d8f064)
 
