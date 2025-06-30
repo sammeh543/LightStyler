@@ -133,16 +133,6 @@ jQuery(function () {
         },
 
         /**
-         * Save current character settings before switching (called manually)
-         */
-        saveBeforeSwitch() {
-            if (this.currentCharacter) {
-                console.log('LightStyler: Manual save before character switch for:', this.currentCharacter);
-                this.saveCurrentCharacterPositions();
-            }
-        },
-
-        /**
          * Save current position settings for the active character
          */
         saveCurrentCharacterPositions() {
@@ -160,7 +150,6 @@ jQuery(function () {
                 characterBannerPos: settings.characterBannerPos,
             };
 
-            console.log('LightStyler: Saved positions for', characterName, '- Persona:', settings.personaBannerPos, 'Character:', settings.characterBannerPos);
             saveSettingsDebounced();
         },
 
@@ -180,6 +169,13 @@ jQuery(function () {
             settings.characterBannerPos = characterSettings.characterBannerPos;
 
             return true;
+        },
+
+        /**
+         * Delayed execution helper for UI updates
+         */
+        delayedUIUpdate(callback, delay = 50) {
+            setTimeout(callback, delay);
         },
 
         /**
@@ -208,19 +204,19 @@ jQuery(function () {
                 const loaded = this.loadCharacterPositions(newCharacter);
                 if (loaded) {
                     // Update UI to reflect loaded settings
-                    setTimeout(() => {
+                    this.delayedUIUpdate(() => {
                         this.updateBannerPositionInputs();
                         ThemeManager.updateStyles();
-                    }, 50);
+                    });
                 } else {
                     // No saved settings for this character, use defaults
                     const settings = Utils.getSettings();
                     settings.personaBannerPos = DEFAULT_SETTINGS.personaBannerPos;
                     settings.characterBannerPos = DEFAULT_SETTINGS.characterBannerPos;
-                    setTimeout(() => {
+                    this.delayedUIUpdate(() => {
                         this.updateBannerPositionInputs();
                         ThemeManager.updateStyles();
-                    }, 50);
+                    });
                 }
             }
 
@@ -255,10 +251,7 @@ jQuery(function () {
             };
 
             const elements = Utils.getElements(elementIds);
-            if (Object.keys(elements).length !== Object.keys(elementIds).length) {
-                console.log('LightStyler: Banner position input elements not found');
-                return;
-            }
+            if (Object.keys(elements).length !== Object.keys(elementIds).length) return;
 
             // Set flag to prevent saving during loading
             this.isLoadingCharacterSettings = true;
@@ -266,8 +259,6 @@ jQuery(function () {
             const settings = Utils.getSettings();
             elements.personaBannerPos.value = settings.personaBannerPos ?? DEFAULT_SETTINGS.personaBannerPos;
             elements.characterBannerPos.value = settings.characterBannerPos ?? DEFAULT_SETTINGS.characterBannerPos;
-            
-            console.log('LightStyler: Updated UI inputs - Persona:', elements.personaBannerPos.value, 'Character:', elements.characterBannerPos.value);
 
             // Clear flag after a short delay to allow DOM updates to complete
             setTimeout(() => {
@@ -989,40 +980,10 @@ jQuery(function () {
             // Initialize character position manager
             CharacterPositionManager.handleCharacterChange();
             
-            // Update character indicator once UI is loaded - increase timeout
+            // Update character indicator once UI is loaded
             setTimeout(() => {
-                console.log('LightStyler: Delayed indicator update');
                 CharacterPositionManager.updateCharacterIndicator();
             }, 500);
-
-            // Add manual test function to window for debugging
-            window.LightStylerDebug = {
-                testCharacterDetection: () => {
-                    console.log('=== LightStyler Debug Test ===');
-                    const context = SillyTavern.getContext();
-                    console.log('Context:', context);
-                    console.log('Character ID:', context?.characterId);
-                    console.log('Characters:', context?.characters);
-                    console.log('Current character:', CharacterPositionManager.getCurrentCharacterName());
-                    CharacterPositionManager.handleCharacterChange();
-                },
-                forceIndicatorUpdate: () => {
-                    CharacterPositionManager.updateCharacterIndicator();
-                },
-                showAllSavedPositions: () => {
-                    const settings = Utils.getSettings();
-                    console.log('=== All Saved Character Positions ===');
-                    console.log('Character Positions:', settings.characterPositions);
-                    console.log('Current Global Settings - Persona:', settings.personaBannerPos, 'Character:', settings.characterBannerPos);
-                    console.log('Current Character:', CharacterPositionManager.currentCharacter);
-                },
-                clearAllPositions: () => {
-                    const settings = Utils.getSettings();
-                    settings.characterPositions = {};
-                    saveSettingsDebounced();
-                    console.log('All character positions cleared');
-                }
-            };
         },
 
         /**
@@ -1051,7 +1012,6 @@ jQuery(function () {
                 // Debounce character change detection
                 clearTimeout(this.characterChangeTimeout);
                 this.characterChangeTimeout = setTimeout(() => {
-                    console.log('LightStyler: DOM mutation detected, checking for character change');
                     CharacterPositionManager.handleCharacterChange();
                 }, 250);
             });
@@ -1071,15 +1031,10 @@ jQuery(function () {
          * Setup SillyTavern event listeners
          */
         setupEventListeners() {
-            console.log('LightStyler: Setting up event listeners');
-            
             if (context?.internal?.eventSource) {
                 const { eventSource, event_types } = context.internal;
                 
-                console.log('LightStyler: Available event types:', Object.keys(event_types));
-                
                 eventSource.on(event_types.CHAT_CHANGED, () => {
-                    console.log('LightStyler: CHAT_CHANGED event received');
                     MessageProcessor.processAllMessages();
                     this.handleChatChanged();
                     
@@ -1091,9 +1046,7 @@ jQuery(function () {
 
                 // Also listen for character selection changes if available
                 if (event_types.CHARACTER_SELECTED) {
-                    console.log('LightStyler: Setting up CHARACTER_SELECTED listener');
                     eventSource.on(event_types.CHARACTER_SELECTED, () => {
-                        console.log('LightStyler: CHARACTER_SELECTED event received');
                         setTimeout(() => {
                             CharacterPositionManager.handleCharacterChange();
                         }, 100);
@@ -1103,14 +1056,11 @@ jQuery(function () {
                 // Try to catch other relevant events
                 if (event_types.CHARACTER_EDITED) {
                     eventSource.on(event_types.CHARACTER_EDITED, () => {
-                        console.log('LightStyler: CHARACTER_EDITED event received');
                         setTimeout(() => {
                             CharacterPositionManager.handleCharacterChange();
                         }, 100);
                     });
                 }
-            } else {
-                console.log('LightStyler: No event source available in context');
             }
         },
 
