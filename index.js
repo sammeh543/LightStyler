@@ -28,6 +28,7 @@ jQuery(function () {
         PATHS: {
             SETTINGS_HTML: 'scripts/extensions/third-party/LightStyler/settings.html',
             STYLESHEET: 'scripts/extensions/third-party/LightStyler/style.css',
+            GALLERY_MANAGER: 'scripts/extensions/third-party/LightStyler/gallery-manager.js',
         },
         DOM: {
             STYLESHEET_ID: 'lightstyler-style',
@@ -45,6 +46,16 @@ jQuery(function () {
             CHAT_CONTAINER: '#chat',
             CHAT_MESSAGE: '.mes',
             AVATAR_MODE_RADIO_CHECKED: 'input[name="avatar_mode"]:checked',
+            // Gallery Manager Elements
+            CHARACTER_SELECT: 'lightstyler_character_select',
+            IMAGE_SELECT: 'lightstyler_image_select',
+            IMAGE_SELECTION_CONTAINER: 'lightstyler_image_selection',
+            REFRESH_CHARACTERS_BUTTON: 'lightstyler_refresh_characters',
+            PREVIEW_IMAGE_BUTTON: 'lightstyler_preview_image',
+            APPLY_IMAGE_BUTTON: 'lightstyler_apply_image',
+            RESET_CHARACTER_BUTTON: 'lightstyler_reset_character',
+            IMAGE_PREVIEW_CONTAINER: 'lightstyler_image_preview',
+            PREVIEW_IMG: 'lightstyler_preview_img',
         },
         CSS_VARS: {
             AVATAR_WIDTH: '--avatar-width',
@@ -52,6 +63,7 @@ jQuery(function () {
             PERSONA_BANNER: '--persona-banner-pos',
             CHARACTER_BANNER: '--character-banner-pos',
             MESSAGE_AVATAR_URL: '--mes-avatar-url',
+            CHARACTER_OVERRIDE: '--lightstyler-character-override',
         },
     };
 
@@ -113,16 +125,178 @@ jQuery(function () {
         const avatarImg = message.querySelector(".avatar img");
         if (avatarImg && message.style.getPropertyValue(CONSTANTS.CSS_VARS.MESSAGE_AVATAR_URL) === "") {
             let avatarSrc = avatarImg.getAttribute("src");
-            if (avatarSrc && !avatarSrc.startsWith("/") && !avatarSrc.startsWith("http")) {
-                avatarSrc = "/" + avatarSrc;
+            if (avatarSrc) {
+                // Check for character override
+                const isUser = message.getAttribute("is_user") === "true";
+                if (!isUser && window.LightStylerGalleryManager) {
+                    const nameElement = message.querySelector(".name_text");
+                    const charName = nameElement ? nameElement.textContent.trim() : null;
+                    
+                    if (charName) {
+                        const altImage = window.LightStylerGalleryManager.getCharacterAlternativeImage(charName);
+                        if (altImage) {
+                            message.style.setProperty(CONSTANTS.CSS_VARS.MESSAGE_AVATAR_URL, `url('${altImage}')`);
+                            return;
+                        }
+                    }
+                }
+                
+                // Use default avatar
+                if (!avatarSrc.startsWith("/") && !avatarSrc.startsWith("http")) {
+                    avatarSrc = "/" + avatarSrc;
+                }
+                const escapedSrc = avatarSrc.replace(/['"()\s]/g, "\\$&");
+                message.style.setProperty(CONSTANTS.CSS_VARS.MESSAGE_AVATAR_URL, `url('${escapedSrc}')`);
             }
-            const escapedSrc = avatarSrc.replace(/['"()\s]/g, "\\$&");
-            message.style.setProperty(CONSTANTS.CSS_VARS.MESSAGE_AVATAR_URL, `url('${escapedSrc}')`);
         }
     }
 
     function processAllMessages() {
         document.querySelectorAll(`${CONSTANTS.DOM.CHAT_CONTAINER} ${CONSTANTS.DOM.CHAT_MESSAGE}`).forEach(processMessage);
+    }
+
+    // Export processAllMessages for gallery manager to use
+    window.LightStyler = { processAllMessages };
+
+    //================================================================================
+    // GALLERY MANAGER INTEGRATION
+    //================================================================================
+
+    async function loadGalleryManager() {
+        if (window.LightStylerGalleryManager) return;
+        
+        try {
+            const script = document.createElement('script');
+            script.src = CONSTANTS.PATHS.GALLERY_MANAGER;
+            script.async = true;
+            document.head.appendChild(script);
+            
+            await new Promise((resolve, reject) => {
+                script.onload = resolve;
+                script.onerror = reject;
+            });
+            
+            if (window.LightStylerGalleryManager) {
+                await window.LightStylerGalleryManager.init();
+            }
+        } catch (error) {
+            console.error('Failed to load gallery manager:', error);
+        }
+    }
+
+    async function setupGalleryUI() {
+        const elements = {
+            characterSelect: document.getElementById(CONSTANTS.DOM.CHARACTER_SELECT),
+            imageSelect: document.getElementById(CONSTANTS.DOM.IMAGE_SELECT),
+            imageSelection: document.getElementById(CONSTANTS.DOM.IMAGE_SELECTION_CONTAINER),
+            refreshButton: document.getElementById(CONSTANTS.DOM.REFRESH_CHARACTERS_BUTTON),
+            previewButton: document.getElementById(CONSTANTS.DOM.PREVIEW_IMAGE_BUTTON),
+            applyButton: document.getElementById(CONSTANTS.DOM.APPLY_IMAGE_BUTTON),
+            resetButton: document.getElementById(CONSTANTS.DOM.RESET_CHARACTER_BUTTON),
+            previewContainer: document.getElementById(CONSTANTS.DOM.IMAGE_PREVIEW_CONTAINER),
+            previewImg: document.getElementById(CONSTANTS.DOM.PREVIEW_IMG),
+        };
+
+        if (!Object.values(elements).every(el => el)) return;
+
+        // Load characters on refresh
+        async function loadCharacters() {
+            if (!window.LightStylerGalleryManager) return;
+            
+            elements.characterSelect.innerHTML = '<option value="">Select a character...</option>';
+            const folders = await window.LightStylerGalleryManager.getCharacterFolders();
+            
+            folders.forEach(folder => {
+                const option = document.createElement('option');
+                option.value = folder;
+                option.textContent = folder;
+                elements.characterSelect.appendChild(option);
+            });
+        }
+
+        // Load images for selected character
+        async function loadCharacterImages() {
+            const selectedChar = elements.characterSelect.value;
+            if (!selectedChar || !window.LightStylerGalleryManager) {
+                elements.imageSelection.style.display = 'none';
+                return;
+            }
+
+            elements.imageSelect.innerHTML = '<option value="">Use default avatar</option>';
+            const images = await window.LightStylerGalleryManager.getCharacterImages(selectedChar);
+            
+            images.forEach(image => {
+                const option = document.createElement('option');
+                option.value = image.url;
+                option.textContent = image.name;
+                elements.imageSelect.appendChild(option);
+            });
+
+            // Show current selection if any
+            const currentImage = window.LightStylerGalleryManager.getCharacterAlternativeImage(selectedChar);
+            if (currentImage) {
+                elements.imageSelect.value = currentImage;
+            }
+
+            elements.imageSelection.style.display = 'block';
+        }
+
+        // Preview selected image
+        function previewImage() {
+            const selectedImage = elements.imageSelect.value;
+            if (selectedImage) {
+                elements.previewImg.src = selectedImage;
+                elements.previewContainer.style.display = 'block';
+            } else {
+                elements.previewContainer.style.display = 'none';
+            }
+        }
+
+        // Apply selected image
+        function applyImage() {
+            const selectedChar = elements.characterSelect.value;
+            const selectedImage = elements.imageSelect.value;
+            
+            if (!selectedChar || !window.LightStylerGalleryManager) return;
+
+            if (selectedImage) {
+                window.LightStylerGalleryManager.setCharacterAlternativeImage(selectedChar, selectedImage);
+                if (window.toastr) {
+                    toastr.success(`Alternative image applied for ${selectedChar}`);
+                }
+            } else {
+                window.LightStylerGalleryManager.resetCharacterToDefault(selectedChar);
+                if (window.toastr) {
+                    toastr.success(`${selectedChar} reset to default avatar`);
+                }
+            }
+            
+            elements.previewContainer.style.display = 'none';
+        }
+
+        // Reset character to default
+        function resetCharacter() {
+            const selectedChar = elements.characterSelect.value;
+            if (!selectedChar || !window.LightStylerGalleryManager) return;
+
+            window.LightStylerGalleryManager.resetCharacterToDefault(selectedChar);
+            elements.imageSelect.value = '';
+            elements.previewContainer.style.display = 'none';
+            if (window.toastr) {
+                toastr.success(`${selectedChar} reset to default avatar`);
+            }
+        }
+
+        // Event listeners
+        elements.refreshButton.addEventListener('click', loadCharacters);
+        elements.characterSelect.addEventListener('change', loadCharacterImages);
+        elements.imageSelect.addEventListener('change', previewImage);
+        elements.previewButton.addEventListener('click', previewImage);
+        elements.applyButton.addEventListener('click', applyImage);
+        elements.resetButton.addEventListener('click', resetCharacter);
+
+        // Initial load
+        await loadCharacters();
     }
 
     //================================================================================
@@ -280,6 +454,11 @@ jQuery(function () {
 
         setupWhisperLightToggle();
         setupThemeSettings();
+        
+        // Load gallery manager and setup UI
+        await loadGalleryManager();
+        await setupGalleryUI();
+        
         if (getSettings().whisperLight) {
             updateThemeStyles();
         }
@@ -310,7 +489,13 @@ jQuery(function () {
         // Listener for chat changes (e.g., loading a new chat)
         if (context?.internal?.eventSource) {
             const { eventSource, event_types } = context.internal;
-            eventSource.on(event_types.CHAT_CHANGED, processAllMessages);
+            eventSource.on(event_types.CHAT_CHANGED, () => {
+                processAllMessages();
+                // Update character override when switching characters
+                if (window.LightStylerGalleryManager) {
+                    window.LightStylerGalleryManager.updateCurrentCharacterImage();
+                }
+            });
         }
 
         // Observer for the settings panel

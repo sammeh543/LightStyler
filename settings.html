@@ -12,10 +12,37 @@
             </div>
             <hr class="sysHR" />
             <div id="lightstyler_theme_settings">
+                <!-- Character Alternative Images Section -->
                 <div class="example-extension_block">
-                    <button id="lightstyler_gallery_button" class="menu_button">Choose From Gallery</button>
-                    <button id="lightstyler_revert_avatar" class="menu_button">Revert to Default</button>
+                    <h4>Character Alternative Images</h4>
+                    <div class="flex-container" style="gap: 10px; margin-bottom: 10px;">
+                        <select id="lightstyler_character_select" class="text_pole flex1">
+                            <option value="">Select a character...</option>
+                        </select>
+                        <button id="lightstyler_refresh_characters" class="menu_button" title="Refresh character list">
+                            <i class="fa-solid fa-refresh"></i>
+                        </button>
+                    </div>
+                    <div id="lightstyler_image_selection" style="display: none;">
+                        <div class="flex-container" style="gap: 10px; margin-bottom: 10px;">
+                            <select id="lightstyler_image_select" class="text_pole flex1">
+                                <option value="">Use default avatar</option>
+                            </select>
+                            <button id="lightstyler_preview_image" class="menu_button" title="Preview selected image">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="flex-container" style="gap: 10px;">
+                            <button id="lightstyler_apply_image" class="menu_button">Apply Image</button>
+                            <button id="lightstyler_reset_character" class="menu_button">Reset to Default</button>
+                        </div>
+                        <div id="lightstyler_image_preview" style="margin-top: 10px; display: none;">
+                            <img id="lightstyler_preview_img" style="max-width: 200px; max-height: 150px; border: 1px solid var(--SmartThemeBorderColor);" alt="Preview">
+                        </div>
+                    </div>
                 </div>
+                <hr class="sysHR" />
+                <!-- Avatar Size Section -->
                 <label>Avatar Size Mode:</label>
                 <div class="flex-container">
                     <input type="radio" id="lightstyler_large_avatar_mode" name="avatar_mode" value="large" checked>
@@ -58,12 +85,5 @@
                 </div>
             </div>
         </div>
-    </div>
-</div>
-<div id="lightstyler_gallery_modal" class="modal" style="display:none;">
-    <div class="modal-content">
-        <span class="close">&times;</span>
-        <h2>Select an Image</h2>
-        <div id="lightstyler_gallery_images"></div>
     </div>
 </div>
