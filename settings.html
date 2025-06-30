@@ -12,6 +12,10 @@
             </div>
             <hr class="sysHR" />
             <div id="lightstyler_theme_settings">
+                <div class="example-extension_block">
+                    <button id="lightstyler_gallery_button" class="menu_button">Choose From Gallery</button>
+                    <button id="lightstyler_revert_avatar" class="menu_button">Revert to Default</button>
+                </div>
                 <label>Avatar Size Mode:</label>
                 <div class="flex-container">
                     <input type="radio" id="lightstyler_large_avatar_mode" name="avatar_mode" value="large" checked>
@@ -54,5 +58,12 @@
                 </div>
             </div>
         </div>
+    </div>
+</div>
+<div id="lightstyler_gallery_modal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Select an Image</h2>
+        <div id="lightstyler_gallery_images"></div>
     </div>
 </div>
