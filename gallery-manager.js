@@ -115,21 +115,6 @@ const GalleryManager = {
     },
 
     /**
-     * Get current character avatar filename
-     * @returns {string|null} Current character avatar filename
-     */
-    getCurrentCharacterAvatar() {
-        const context = this.getContext();
-        if (!context) return null;
-
-        if (context.characterId !== undefined && context.characters[context.characterId]) {
-            return context.characters[context.characterId].avatar;
-        }
-
-        return null;
-    },
-
-    /**
      * Set alternative image for a character
      * @param {string} characterName - Name of the character
      * @param {string} imageUrl - URL of the alternative image
@@ -140,7 +125,7 @@ const GalleryManager = {
         this.currentSelections.set(characterName, imageUrl);
         this.saveSelections();
         
-        // Always trigger a full message reprocess to update all visible messages
+        // Trigger message reprocess to update all visible messages
         this.updateAllCharacterImages();
     },
 
@@ -154,7 +139,7 @@ const GalleryManager = {
         this.currentSelections.delete(characterName);
         this.saveSelections();
         
-        // Always trigger a full message reprocess to update all visible messages
+        // Trigger message reprocess to update all visible messages
         this.updateAllCharacterImages();
     },
 
@@ -170,12 +155,8 @@ const GalleryManager = {
 
     /**
      * Update all character images in the current chat
-     * This processes all messages individually rather than using global CSS overrides
      */
     updateAllCharacterImages() {
-        // Clear any existing global override
-        document.documentElement.style.removeProperty('--lightstyler-character-override');
-        
         // Process all messages to apply character-specific overrides
         if (window.LightStyler?.processAllMessages) {
             // Small delay to ensure any previous operations are complete
@@ -183,14 +164,6 @@ const GalleryManager = {
                 window.LightStyler.processAllMessages();
             }, 50);
         }
-    },
-
-    /**
-     * Update the current character's image in the theme (deprecated - use updateAllCharacterImages)
-     * @deprecated Use updateAllCharacterImages instead
-     */
-    updateCurrentCharacterImage() {
-        this.updateAllCharacterImages();
     },
 
     /**

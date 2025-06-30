@@ -16,14 +16,18 @@
                 <div class="example-extension_block">
                     <h4>Character Alternative Images</h4>
                     <small style="opacity: 0.8; margin-bottom: 10px; display: block;">
-                        Select a character and choose an alternative image from their gallery folder. 
+                        Select any character and choose an alternative image from their gallery folder. 
                         Images must be uploaded via SillyTavern's Gallery extension first.
+                        <br><strong>Note:</strong> Image folders are character-specific
+                        - selecting "John Tavern's" image will only work for
+                        "John Tavern",
+                        not other characters.
                     </small>
                     <div class="flex-container" style="gap: 10px; margin-bottom: 10px;">
                         <select id="lightstyler_character_select" class="text_pole flex1">
                             <option value="">Select a character...</option>
                         </select>
-                        <button id="lightstyler_refresh_characters" class="menu_button" title="Refresh character list">
+                        <button id="lightstyler_refresh_characters" class="menu_button" title="Refresh character list and auto-select current character">
                             <i class="fa-solid fa-refresh"></i>
                         </button>
                     </div>
