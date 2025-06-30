@@ -57,7 +57,11 @@ Tavern's" chat, it will apply it to Jane Silly's banner.
 2. Enable the extension in the Extensions panel
 3. Configure settings in the LightStyler panel
 
+- **Note** - If the chat gets a bit slow I highly recommend lowering `# Msg. to
+  Load` in User Settings > Chat/Message Handling.
 
+
+- **Inspo and Credit**
 I was heavily inspired by RivelleDays Moonlit Echoes Extension and Character
 styler. Please check them out. This was just my answer to wanting the whisper
 theme but without all the extra. 
