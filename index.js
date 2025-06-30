@@ -12,13 +12,12 @@
     when deselected allows us to keep the UID and Avartar grabbing
     but makes it so other Whisper Light specific stuff wont interfere with
     our UI when the theme is off.
-  - Gallery image selection for character headers.
 ================================================================================
 */
 
 jQuery(function () {
     const context = SillyTavern.getContext();
-    const { extensionSettings, saveSettingsDebounced, characters } = context;
+    const { extensionSettings, saveSettingsDebounced } = context;
 
     //================================================================================
     // CONSTANTS & CONFIGURATION
@@ -45,12 +44,7 @@ jQuery(function () {
             EXTENSIONS_SETTINGS: '#extensions_settings',
             CHAT_CONTAINER: '#chat',
             CHAT_MESSAGE: '.mes',
-            AVATAR_MODE_RADIO_CHECKED: 'input[name=\"avatar_mode\"]:checked',
-            GALLERY_BUTTON: 'lightstyler_gallery_button',
-            REVERT_AVATAR_BUTTON: 'lightstyler_revert_avatar',
-            GALLERY_MODAL: 'lightstyler_gallery_modal',
-            GALLERY_IMAGES: 'lightstyler_gallery_images',
-            MODAL_CLOSE: 'close',
+            AVATAR_MODE_RADIO_CHECKED: 'input[name="avatar_mode"]:checked',
         },
         CSS_VARS: {
             AVATAR_WIDTH: '--avatar-width',
@@ -70,7 +64,6 @@ jQuery(function () {
         edit_offset_small: 90,
         personaBannerPos: 15,
         characterBannerPos: 27,
-        galleryAvatars: {},
     };
 
     //================================================================================
@@ -118,11 +111,8 @@ jQuery(function () {
         }
 
         const avatarImg = message.querySelector(".avatar img");
-        if (avatarImg) {
-            const settings = getSettings();
-            const customAvatar = settings.galleryAvatars[uid];
-            let avatarSrc = customAvatar || avatarImg.getAttribute("src");
-
+        if (avatarImg && message.style.getPropertyValue(CONSTANTS.CSS_VARS.MESSAGE_AVATAR_URL) === "") {
+            let avatarSrc = avatarImg.getAttribute("src");
             if (avatarSrc && !avatarSrc.startsWith("/") && !avatarSrc.startsWith("http")) {
                 avatarSrc = "/" + avatarSrc;
             }
@@ -133,34 +123,6 @@ jQuery(function () {
 
     function processAllMessages() {
         document.querySelectorAll(`${CONSTANTS.DOM.CHAT_CONTAINER} ${CONSTANTS.DOM.CHAT_MESSAGE}`).forEach(processMessage);
-    }
-
-    //================================================================================
-    // GALLERY MODAL
-    //================================================================================
-
-    async function openGalleryModal() {
-        const characterName = context.characters[context.characterId].name;
-        const galleryPath = `/user/images/${characterName}`;
-        const modal = document.getElementById(CONSTANTS.DOM.GALLERY_MODAL);
-        const galleryImages = document.getElementById(CONSTANTS.DOM.GALLERY_IMAGES);
-        galleryImages.innerHTML = 'Loading...';
-        modal.style.display = "block";
-
-        try {
-            // This is a placeholder for fetching images.
-            // In a real scenario, you'd fetch the list of images from the server.
-            // For now, we'll just show a message.
-            galleryImages.innerHTML = 'Gallery feature is under development.';
-        } catch (error) {
-            console.error("Error loading gallery images:", error);
-            galleryImages.innerHTML = 'Error loading images.';
-        }
-    }
-
-    function closeGalleryModal() {
-        const modal = document.getElementById(CONSTANTS.DOM.GALLERY_MODAL);
-        modal.style.display = "none";
     }
 
     //================================================================================
@@ -239,9 +201,6 @@ jQuery(function () {
             personaBannerPosInput: document.getElementById(CONSTANTS.DOM.PERSONA_BANNER_POS_INPUT),
             characterBannerPosInput: document.getElementById(CONSTANTS.DOM.CHARACTER_BANNER_POS_INPUT),
             bannerPosResetButton: document.getElementById(CONSTANTS.DOM.BANNER_POS_RESET_BUTTON),
-            galleryButton: document.getElementById(CONSTANTS.DOM.GALLERY_BUTTON),
-            revertAvatarButton: document.getElementById(CONSTANTS.DOM.REVERT_AVATAR_BUTTON),
-            modalClose: document.querySelector(`#${CONSTANTS.DOM.GALLERY_MODAL} .${CONSTANTS.DOM.MODAL_CLOSE}`),
         };
 
         if (Object.values(elements).some(el => !el)) return;
@@ -277,26 +236,6 @@ jQuery(function () {
             applyBannerPositions();
             updateThemeStyles();
         });
-
-        elements.galleryButton.addEventListener("click", openGalleryModal);
-        elements.modalClose.addEventListener("click", closeGalleryModal);
-        window.addEventListener("click", (event) => {
-            const modal = document.getElementById(CONSTANTS.DOM.GALLERY_MODAL);
-            if (event.target == modal) {
-                closeGalleryModal();
-            }
-        });
-
-        elements.revertAvatarButton.addEventListener("click", () => {
-            const settings = getSettings();
-            const uid = getMessageAuthorUid(document.querySelector('.mes:last-child'));
-            if (uid && settings.galleryAvatars[uid]) {
-                delete settings.galleryAvatars[uid];
-                saveSettingsDebounced();
-                processAllMessages();
-            }
-        });
-
 
         const handleModeChange = (mode) => {
             getSettings().avatarMode = mode;
