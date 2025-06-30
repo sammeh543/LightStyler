@@ -610,6 +610,10 @@ jQuery(function () {
          */
         setupGalleryEvents(elements) {
             elements.refreshButton.addEventListener('click', async () => {
+                // Clear the gallery manager's image cache to force fresh data
+                if (window.LightStylerGalleryManager) {
+                    window.LightStylerGalleryManager.clearCache();
+                }
                 await this.loadCharacters(elements);
                 Utils.showNotification('Character list refreshed', 'info');
             });
