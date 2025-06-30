@@ -21,6 +21,7 @@ A comprehensive SillyTavern extension that enhances chat aesthetics with dynamic
 - **CSS Override System** - Non-destructive styling that works with other
   themes. YMMV
 - **Performance Optimized** - Lightweight CSS with smart variable management
+- **Improved User Experience** - Smart notification timings: quick status updates (2.5s), confirmations (3s), warnings (4s), and errors (5s) for optimal readability
 
 ## ✨ Alternative Images Feature
 

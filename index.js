@@ -333,12 +333,25 @@ jQuery(function () {
             return elements;
         },
 
-        /**
-         * Show notification if toastr is available
-         */
+       
         showNotification(message, type = 'success') {
             if (window.toastr) {
-                toastr[type](message);
+                // Define timeout durations for different message types (in milliseconds)
+                const timeouts = {
+                    info: 2500,     // Quick status messages - brief display
+                    success: 2500,  // Success confirmations - moderate display  
+                    warning: 4000,  // Warnings - longer for attention
+                    error: 5000     // Errors - longest for user to read
+                };
+                
+                // Get appropriate timeout, fallback to success timeout
+                const timeout = timeouts[type] || timeouts.success;
+                
+                // Show notification with custom timeout
+                toastr[type](message, '', {
+                    timeOut: timeout,
+                    extendedTimeOut: timeout + 2000
+                });
             }
         },
 
