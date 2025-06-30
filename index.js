@@ -123,7 +123,7 @@ jQuery(function () {
         }
 
         const avatarImg = message.querySelector(".avatar img");
-        if (avatarImg && message.style.getPropertyValue(CONSTANTS.CSS_VARS.MESSAGE_AVATAR_URL) === "") {
+        if (avatarImg) {
             let avatarSrc = avatarImg.getAttribute("src");
             if (avatarSrc) {
                 // Check for character override
@@ -135,7 +135,9 @@ jQuery(function () {
                     if (charName) {
                         const altImage = window.LightStylerGalleryManager.getCharacterAlternativeImage(charName);
                         if (altImage) {
-                            message.style.setProperty(CONSTANTS.CSS_VARS.MESSAGE_AVATAR_URL, `url('${altImage}')`);
+                            // Use alternative image for this specific message
+                            const cleanUrl = altImage.startsWith('/') ? altImage : `/${altImage}`;
+                            message.style.setProperty(CONSTANTS.CSS_VARS.MESSAGE_AVATAR_URL, `url('${cleanUrl}')`);
                             return;
                         }
                     }
@@ -199,12 +201,15 @@ jQuery(function () {
 
         if (!Object.values(elements).every(el => el)) return;
 
-        // Load characters on refresh
+        // Load characters and set current character as selected
         async function loadCharacters() {
             if (!window.LightStylerGalleryManager) return;
             
             elements.characterSelect.innerHTML = '<option value="">Select a character...</option>';
             const folders = await window.LightStylerGalleryManager.getCharacterFolders();
+            
+            // Get current character name to pre-select it
+            const currentChar = window.LightStylerGalleryManager.getCurrentCharacterName();
             
             folders.forEach(folder => {
                 const option = document.createElement('option');
@@ -212,6 +217,12 @@ jQuery(function () {
                 option.textContent = folder;
                 elements.characterSelect.appendChild(option);
             });
+
+            // Auto-select current character if available
+            if (currentChar && folders.includes(currentChar)) {
+                elements.characterSelect.value = currentChar;
+                await loadCharacterImages(); // Auto-load images for current character
+            }
         }
 
         // Load images for selected character
@@ -225,17 +236,27 @@ jQuery(function () {
             elements.imageSelect.innerHTML = '<option value="">Use default avatar</option>';
             const images = await window.LightStylerGalleryManager.getCharacterImages(selectedChar);
             
-            images.forEach(image => {
+            if (images.length === 0) {
+                // No images found for this character
                 const option = document.createElement('option');
-                option.value = image.url;
-                option.textContent = image.name;
+                option.value = '';
+                option.textContent = 'No images found - use Gallery extension to add images';
+                option.disabled = true;
                 elements.imageSelect.appendChild(option);
-            });
+            } else {
+                images.forEach(image => {
+                    const option = document.createElement('option');
+                    option.value = image.url;
+                    option.textContent = image.name;
+                    elements.imageSelect.appendChild(option);
+                });
+            }
 
             // Show current selection if any
             const currentImage = window.LightStylerGalleryManager.getCharacterAlternativeImage(selectedChar);
             if (currentImage) {
                 elements.imageSelect.value = currentImage;
+                previewImage(); // Auto-preview current selection
             }
 
             elements.imageSelection.style.display = 'block';
@@ -288,7 +309,12 @@ jQuery(function () {
         }
 
         // Event listeners
-        elements.refreshButton.addEventListener('click', loadCharacters);
+        elements.refreshButton.addEventListener('click', async () => {
+            await loadCharacters();
+            if (window.toastr) {
+                toastr.info('Character list refreshed');
+            }
+        });
         elements.characterSelect.addEventListener('change', loadCharacterImages);
         elements.imageSelect.addEventListener('change', previewImage);
         elements.previewButton.addEventListener('click', previewImage);
@@ -493,7 +519,19 @@ jQuery(function () {
                 processAllMessages();
                 // Update character override when switching characters
                 if (window.LightStylerGalleryManager) {
-                    window.LightStylerGalleryManager.updateCurrentCharacterImage();
+                    window.LightStylerGalleryManager.updateAllCharacterImages();
+                    
+                    // Also refresh the gallery UI to show current character
+                    setTimeout(() => {
+                        const characterSelect = document.getElementById(CONSTANTS.DOM.CHARACTER_SELECT);
+                        const currentChar = window.LightStylerGalleryManager.getCurrentCharacterName();
+                        if (characterSelect && currentChar) {
+                            characterSelect.value = currentChar;
+                            // Trigger change event to load images
+                            const event = new Event('change');
+                            characterSelect.dispatchEvent(event);
+                        }
+                    }, 200);
                 }
             });
         }

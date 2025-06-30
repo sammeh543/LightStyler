@@ -143,11 +143,6 @@
   .mes[is_user="false"]::before { background-position: center var(--character-banner-pos, 27%) !important; }
   .mes[is_user="true"]::before  { background-position: center var(--persona-banner-pos, 15%) !important; }
 
-  /* Character override for alternative images */
-  .mes[is_user="false"]::before {
-    background-image: var(--lightstyler-character-override, var(--mes-avatar-url)) !important;
-  }
-
 /* --- Step 4: REPOSITIONED INFO BLOCK (NAME, TIME, METADATA) --- */
 /* The two-block system for all the info text in the header.       */
 /* --------------------------------------------------------------- */

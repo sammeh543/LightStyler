@@ -140,11 +140,8 @@ const GalleryManager = {
         this.currentSelections.set(characterName, imageUrl);
         this.saveSelections();
         
-        // Trigger theme update if this is the current character
-        const currentChar = this.getCurrentCharacterName();
-        if (currentChar === characterName) {
-            this.updateCurrentCharacterImage();
-        }
+        // Always trigger a full message reprocess to update all visible messages
+        this.updateAllCharacterImages();
     },
 
     /**
@@ -157,11 +154,8 @@ const GalleryManager = {
         this.currentSelections.delete(characterName);
         this.saveSelections();
         
-        // Trigger theme update if this is the current character
-        const currentChar = this.getCurrentCharacterName();
-        if (currentChar === characterName) {
-            this.updateCurrentCharacterImage();
-        }
+        // Always trigger a full message reprocess to update all visible messages
+        this.updateAllCharacterImages();
     },
 
     /**
@@ -175,33 +169,28 @@ const GalleryManager = {
     },
 
     /**
-     * Update the current character's image in the theme
+     * Update all character images in the current chat
+     * This processes all messages individually rather than using global CSS overrides
      */
-    updateCurrentCharacterImage() {
-        const characterName = this.getCurrentCharacterName();
-        if (!characterName) {
-            // Clear any existing override if no character is selected
-            document.documentElement.style.removeProperty('--lightstyler-character-override');
-            return;
-        }
-
-        const altImage = this.getCharacterAlternativeImage(characterName);
+    updateAllCharacterImages() {
+        // Clear any existing global override
+        document.documentElement.style.removeProperty('--lightstyler-character-override');
         
-        if (altImage) {
-            // Use alternative image with proper URL formatting
-            const cleanUrl = altImage.startsWith('/') ? altImage : `/${altImage}`;
-            document.documentElement.style.setProperty('--lightstyler-character-override', `url('${cleanUrl}')`);
-        } else {
-            // Remove override to use default
-            document.documentElement.style.removeProperty('--lightstyler-character-override');
-        }
-
-        // Trigger a message reprocess to update all visible messages
+        // Process all messages to apply character-specific overrides
         if (window.LightStyler?.processAllMessages) {
+            // Small delay to ensure any previous operations are complete
             setTimeout(() => {
                 window.LightStyler.processAllMessages();
-            }, 100); // Small delay to ensure CSS has been applied
+            }, 50);
         }
+    },
+
+    /**
+     * Update the current character's image in the theme (deprecated - use updateAllCharacterImages)
+     * @deprecated Use updateAllCharacterImages instead
+     */
+    updateCurrentCharacterImage() {
+        this.updateAllCharacterImages();
     },
 
     /**
