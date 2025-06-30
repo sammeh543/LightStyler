@@ -58,7 +58,9 @@ Tavern's" chat, it will apply it to Jane Silly's banner.
 3. Configure settings in the LightStyler panel
 
 - **Note** - If the chat gets a bit slow I highly recommend lowering `# Msg. to
-  Load` in User Settings > Chat/Message Handling.
+  Load` in User Settings > Chat/Message Handling. LightStyler processes each
+  message individually for character-specific styling, so fewer messages =
+  faster loading.
 
 
 - **Inspo and Credit**

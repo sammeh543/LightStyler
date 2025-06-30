@@ -167,26 +167,57 @@ const GalleryManager = {
     },
 
     /**
-     * Save current selections to localStorage
+     * Save current selections to extensionSettings
      */
     saveSelections() {
         try {
-            const selectionsObj = Object.fromEntries(this.currentSelections);
-            localStorage.setItem('lightstyler_character_images', JSON.stringify(selectionsObj));
+            const context = this.getContext();
+            if (!context) return;
+            
+            const { extensionSettings, saveSettingsDebounced } = context;
+            
+            if (!extensionSettings.LightStyler) {
+                extensionSettings.LightStyler = {};
+            }
+            
+            if (!extensionSettings.LightStyler.characterImages) {
+                extensionSettings.LightStyler.characterImages = {};
+            }
+            
+            extensionSettings.LightStyler.characterImages = Object.fromEntries(this.currentSelections);
+            saveSettingsDebounced();
         } catch (error) {
             console.error('Error saving character image selections:', error);
         }
     },
 
     /**
-     * Load selections from localStorage
+     * Load selections from extensionSettings
      */
     loadSelections() {
         try {
-            const saved = localStorage.getItem('lightstyler_character_images');
-            if (saved) {
-                const selectionsObj = JSON.parse(saved);
-                this.currentSelections = new Map(Object.entries(selectionsObj));
+            const context = this.getContext();
+            if (!context) return;
+            
+            const { extensionSettings } = context;
+            
+            // Load from new extensionSettings location
+            if (extensionSettings.LightStyler?.characterImages) {
+                this.currentSelections = new Map(Object.entries(extensionSettings.LightStyler.characterImages));
+            } else {
+                // Migration: check for old localStorage data
+                const oldSaved = localStorage.getItem('lightstyler_character_images');
+                if (oldSaved) {
+                    const selectionsObj = JSON.parse(oldSaved);
+                    this.currentSelections = new Map(Object.entries(selectionsObj));
+                    
+                    // Migrate to new storage and remove old
+                    this.saveSelections();
+                    localStorage.removeItem('lightstyler_character_images');
+                    console.log('LightStyler: Migrated character images from localStorage to extensionSettings');
+                } else {
+                    this.currentSelections = new Map();
+                }
             }
         } catch (error) {
             console.error('Error loading character image selections:', error);
