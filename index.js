@@ -16,6 +16,43 @@
 */
 
 jQuery(function () {
+    const context = SillyTavern.getContext();
+    const { extensionSettings, saveSettingsDebounced } = context;
+
+    // Define a unique identifier for your extension
+    const MODULE_NAME = 'LightStyler';
+
+    // Define default settings
+    const defaultSettings = {
+        whisperLight: true,
+        avatarMode: 'large',
+        avatar_width_large: 304,
+        edit_offset_large: 390,
+        avatar_width_small: 70,
+        edit_offset_small: 90,
+        personaBannerPos: 15,
+        characterBannerPos: 27,
+    };
+
+    // Define a function to get or initialize settings
+    function getSettings() {
+        // Initialize settings if they don't exist
+        if (!extensionSettings[MODULE_NAME]) {
+            extensionSettings[MODULE_NAME] = structuredClone(defaultSettings);
+        }
+
+        // Ensure all default keys exist (helpful after updates)
+        const settings = extensionSettings[MODULE_NAME];
+        for (const key in defaultSettings) {
+            if (settings[key] === undefined) {
+                settings[key] = defaultSettings[key];
+            }
+        }
+
+        return settings;
+    }
+
+
     // This function gets the character/persona UID
     function getMessageAuthorUid(message) {
         const avatarImg = message.querySelector(".avatar img");
@@ -87,7 +124,6 @@ jQuery(function () {
     }
 
     // Re-process on chat change
-    const context = window.SillyTavern.getContext();
     if (context && context.internal && context.internal.eventSource) {
         const { eventSource, event_types } = context.internal;
         eventSource.on(event_types.CHAT_CHANGED, processAllMessages);
@@ -105,7 +141,7 @@ jQuery(function () {
         setupWhisperLightToggle();
         setupThemeSettings(); // New function call
         // Apply initial styles AFTER settings are loaded
-        if (localStorage.getItem("lightstyler_whisper_light") !== "false") {
+        if (getSettings().whisperLight) {
             updateThemeStyles();
         }
     }
@@ -143,14 +179,17 @@ jQuery(function () {
     function setupWhisperLightToggle() {
         const checkbox = document.getElementById("lightstyler_whisper_light");
         if (!checkbox) return;
-        // Load saved state from localStorage (or default to enabled)
-        const saved =
-            localStorage.getItem("lightstyler_whisper_light") !== "false"; // Default to true
-        checkbox.checked = saved;
-        setWhisperLightEnabled(saved);
+
+        const settings = getSettings();
+
+        // Load saved state from settings
+        checkbox.checked = settings.whisperLight;
+        setWhisperLightEnabled(checkbox.checked);
+
         checkbox.addEventListener("change", () => {
             setWhisperLightEnabled(checkbox.checked);
-            localStorage.setItem("lightstyler_whisper_light", checkbox.checked);
+            settings.whisperLight = checkbox.checked;
+            saveSettingsDebounced();
         });
     }
 
@@ -178,70 +217,104 @@ jQuery(function () {
             characterBannerPos: 27
         };
 
-        function applyMode(mode) {
-            const newWidth = localStorage.getItem(`lightstyler_avatar_width_${mode}`) || defaults[mode].width;
-            const newOffset = localStorage.getItem(`lightstyler_edit_offset_${mode}`) || defaults[mode].offset;
 
+        function applyMode(mode) {
+            const settings = getSettings();
+            const newWidth = settings[`avatar_width_${mode}`] ?? defaults[mode].width;
+            const newOffset = settings[`edit_offset_${mode}`] ?? defaults[mode].offset;
             avatarWidthInput.value = newWidth;
             editOffsetInput.value = newOffset;
-            updateThemeStyles();
         }
 
         function applyBannerPositions() {
-            const personaPos = localStorage.getItem("lightstyler_persona_banner_pos") || defaults.personaBannerPos;
-            const characterPos = localStorage.getItem("lightstyler_character_banner_pos") || defaults.characterBannerPos;
+            const settings = getSettings();
+            const personaPos = settings.personaBannerPos ?? defaults.personaBannerPos;
+            const characterPos = settings.characterBannerPos ?? defaults.characterBannerPos;
             personaBannerPosInput.value = personaPos;
             characterBannerPosInput.value = characterPos;
-            updateThemeStyles();
         }
 
         resetButton.addEventListener("click", () => {
+            const settings = getSettings();
             const mode = document.querySelector('input[name="avatar_mode"]:checked').value;
-            // Clear stored values
-            localStorage.removeItem(`lightstyler_avatar_width_${mode}`);
-            localStorage.removeItem(`lightstyler_edit_offset_${mode}`);
-            // Re-apply the defaults for the current mode
+            // Restore default values directly
+            settings[`avatar_width_${mode}`] = defaultSettings[`avatar_width_${mode}`];
+            settings[`edit_offset_${mode}`] = defaultSettings[`edit_offset_${mode}`];
+            saveSettingsDebounced();
             applyMode(mode);
+            updateThemeStyles();
         });
 
         bannerPosResetButton.addEventListener("click", () => {
-            localStorage.removeItem("lightstyler_persona_banner_pos");
-            localStorage.removeItem("lightstyler_character_banner_pos");
+            const settings = getSettings();
+            settings.personaBannerPos = defaultSettings.personaBannerPos;
+            settings.characterBannerPos = defaultSettings.characterBannerPos;
+            saveSettingsDebounced();
             applyBannerPositions();
+            updateThemeStyles();
         });
 
         largeModeRadio.addEventListener("change", () => {
             if (largeModeRadio.checked) {
-                localStorage.setItem("lightstyler_avatar_mode", "large");
+                getSettings().avatarMode = "large";
+                saveSettingsDebounced();
                 applyMode("large");
+                updateThemeStyles();
             }
         });
 
         smallModeRadio.addEventListener("change", () => {
             if (smallModeRadio.checked) {
-                localStorage.setItem("lightstyler_avatar_mode", "small");
+                getSettings().avatarMode = "small";
+                saveSettingsDebounced();
                 applyMode("small");
+                updateThemeStyles();
             }
         });
 
-        avatarWidthInput.addEventListener("input", updateThemeStyles);
-        editOffsetInput.addEventListener("input", updateThemeStyles);
-        personaBannerPosInput.addEventListener("input", updateThemeStyles);
-        characterBannerPosInput.addEventListener("input", updateThemeStyles);
+        avatarWidthInput.addEventListener("input", () => {
+            const settings = getSettings();
+            const mode = document.querySelector('input[name="avatar_mode"]:checked').value;
+            settings[`avatar_width_${mode}`] = avatarWidthInput.value;
+            saveSettingsDebounced();
+            updateThemeStyles();
+        });
+        editOffsetInput.addEventListener("input", () => {
+            const settings = getSettings();
+            const mode = document.querySelector('input[name="avatar_mode"]:checked').value;
+            settings[`edit_offset_${mode}`] = editOffsetInput.value;
+            saveSettingsDebounced();
+            updateThemeStyles();
+        });
+        personaBannerPosInput.addEventListener("input", () => {
+            const settings = getSettings();
+            settings.personaBannerPos = personaBannerPosInput.value;
+            saveSettingsDebounced();
+            updateThemeStyles();
+        });
+        characterBannerPosInput.addEventListener("input", () => {
+            const settings = getSettings();
+            settings.characterBannerPos = characterBannerPosInput.value;
+            saveSettingsDebounced();
+            updateThemeStyles();
+        });
 
         // Load saved state
-        const savedMode = localStorage.getItem("lightstyler_avatar_mode") || "large";
+        const savedMode = getSettings().avatarMode;
         if (savedMode === "small") {
             smallModeRadio.checked = true;
+            largeModeRadio.checked = false;
             applyMode("small");
         } else {
             largeModeRadio.checked = true;
+            smallModeRadio.checked = false;
             applyMode("large");
         }
         applyBannerPositions();
+        updateThemeStyles();
     }
 
-    // NEW: Update CSS variables and save to localStorage
+    // NEW: Update CSS variables and save to extensionSettings
     function updateThemeStyles() {
         const whisperLightEnabled = document.getElementById("lightstyler_whisper_light")?.checked;
         if (!whisperLightEnabled) return;
@@ -267,11 +340,7 @@ jQuery(function () {
         document.documentElement.style.setProperty('--persona-banner-pos', `${personaBannerPos}%`);
         document.documentElement.style.setProperty('--character-banner-pos', `${characterBannerPos}%`);
 
-        // Save to localStorage
-        localStorage.setItem(`lightstyler_avatar_width_${mode}`, avatarWidth);
-        localStorage.setItem(`lightstyler_edit_offset_${mode}`, editOffset);
-        localStorage.setItem("lightstyler_persona_banner_pos", personaBannerPos);
-        localStorage.setItem("lightstyler_character_banner_pos", characterBannerPos);
+        // Do not update avatarMode in settings here! Only update CSS.
     }
 
 
