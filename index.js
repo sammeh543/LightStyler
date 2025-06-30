@@ -1,17 +1,19 @@
 // /MyLightweightStyler/index.js
 /*
 ================================================================================
- Light Weight Styler v17
+ Light Weight Styler v20
 ================================================================================
-  AUTHORS: AI Archaea
-  LAST UPDATED: June 29, 2025
+    AUTHORS: AI Archaea & AI Assistant(Gemini Pro 2.5, Claude Sonnet 4.0)
+  LAST UPDATED: June 30, 2025
 
   FEATURES:
   - Styler allows pulling of UID and Avatars to use with CSS snippets
   - Whisper Light Check box allows for UI theme via style.css
-    when deselected allows us to keep the UID and Avartar grabbing
-    but makes it so other Whisper Light specific stuff wont interfere with
+    when deselected allows us to keep the UID and Avatar grabbing
+    but makes it so other Whisper Light specific stuff won't interfere with
     our UI when the theme is off.
+  - Alternative character images via Gallery extension integration
+  - Cross-device settings sync using SillyTavern's extensionSettings
 ================================================================================
 */
 
@@ -67,7 +69,7 @@ jQuery(function () {
         },
     };
 
-    const defaultSettings = {
+    const DEFAULT_SETTINGS = {
         whisperLight: true,
         avatarMode: 'large',
         avatar_width_large: 304,
@@ -79,130 +81,330 @@ jQuery(function () {
     };
 
     //================================================================================
-    // SETTINGS MANAGEMENT
+    // UTILITY FUNCTIONS
     //================================================================================
 
-    function getSettings() {
-        if (!extensionSettings[CONSTANTS.MODULE_NAME]) {
-            extensionSettings[CONSTANTS.MODULE_NAME] = structuredClone(defaultSettings);
-        }
-        const settings = extensionSettings[CONSTANTS.MODULE_NAME];
-        for (const key in defaultSettings) {
-            if (settings[key] === undefined) {
-                settings[key] = defaultSettings[key];
+    const Utils = {
+        /**
+         * Get settings with defaults applied
+         */
+        getSettings() {
+            if (!extensionSettings[CONSTANTS.MODULE_NAME]) {
+                extensionSettings[CONSTANTS.MODULE_NAME] = structuredClone(DEFAULT_SETTINGS);
             }
+            const settings = extensionSettings[CONSTANTS.MODULE_NAME];
+            for (const key in DEFAULT_SETTINGS) {
+                if (settings[key] === undefined) {
+                    settings[key] = DEFAULT_SETTINGS[key];
+                }
+            }
+            return settings;
+        },
+
+        /**
+         * Get DOM elements by ID with error handling
+         */
+        getElements(elementIds) {
+            const elements = {};
+            const missing = [];
+            
+            for (const [key, id] of Object.entries(elementIds)) {
+                const element = document.getElementById(id);
+                if (element) {
+                    elements[key] = element;
+                } else {
+                    missing.push(id);
+                }
+            }
+            
+            if (missing.length > 0) {
+                console.warn(`LightStyler: Missing DOM elements: ${missing.join(', ')}`);
+            }
+            
+            return elements;
+        },
+
+        /**
+         * Show notification if toastr is available
+         */
+        showNotification(message, type = 'success') {
+            if (window.toastr) {
+                toastr[type](message);
+            }
+        },
+
+        /**
+         * Create input event listener with settings persistence
+         */
+        createInputListener(keyProvider) {
+            return (event) => {
+                const settings = this.getSettings();
+                const key = typeof keyProvider === 'function' ? keyProvider() : keyProvider;
+                settings[key] = event.target.value;
+                saveSettingsDebounced();
+                ThemeManager.updateStyles();
+            };
+        },
+
+        /**
+         * Escape CSS URL values
+         */
+        escapeCssUrl(url) {
+            return url.replace(/['"()\s]/g, "\\$&");
         }
-        return settings;
-    }
+    };
 
     //================================================================================
     // MESSAGE & AVATAR PROCESSING
     //================================================================================
 
-    function getMessageAuthorUid(message) {
-        const avatarImg = message.querySelector(".avatar img");
-        if (!avatarImg) return null;
+    const MessageProcessor = {
+        /**
+         * Extract message author UID for CSS targeting
+         */
+        getMessageAuthorUid(message) {
+            const avatarImg = message.querySelector(".avatar img");
+            if (!avatarImg) return null;
 
-        const isUser = message.getAttribute("is_user") === "true";
-        const nameElement = message.querySelector(".name_text");
-        const charName = nameElement ? nameElement.textContent.trim() : null;
+            const isUser = message.getAttribute("is_user") === "true";
+            const nameElement = message.querySelector(".name_text");
+            const charName = nameElement ? nameElement.textContent.trim() : null;
 
-        const avatarSrc = avatarImg.getAttribute("src");
-        if (!avatarSrc || !charName) return null;
+            const avatarSrc = avatarImg.getAttribute("src");
+            if (!avatarSrc || !charName) return null;
 
-        const charType = isUser ? "persona" : "character";
-        const avatarFileName = avatarSrc.split("/").pop().split("?").shift();
+            const charType = isUser ? "persona" : "character";
+            const avatarFileName = avatarSrc.split("/").pop().split("?").shift();
 
-        return `${charType}|${charName}|${avatarFileName}`;
-    }
+            return `${charType}|${charName}|${avatarFileName}`;
+        },
 
-    function processMessage(message) {
-        const uid = getMessageAuthorUid(message);
-        if (!message.hasAttribute("csc-author-uid") && uid) {
-            message.setAttribute("csc-author-uid", uid);
-        }
-
-        const avatarImg = message.querySelector(".avatar img");
-        if (avatarImg) {
-            let avatarSrc = avatarImg.getAttribute("src");
-            if (avatarSrc) {
-                // Check for character override
-                const isUser = message.getAttribute("is_user") === "true";
-                if (!isUser && window.LightStylerGalleryManager) {
-                    const nameElement = message.querySelector(".name_text");
-                    const charName = nameElement ? nameElement.textContent.trim() : null;
-                    
-                    if (charName) {
-                        const altImage = window.LightStylerGalleryManager.getCharacterAlternativeImage(charName);
-                        if (altImage) {
-                            // Use alternative image for this specific message
-                            const cleanUrl = altImage.startsWith('/') ? altImage : `/${altImage}`;
-                            message.style.setProperty(CONSTANTS.CSS_VARS.MESSAGE_AVATAR_URL, `url('${cleanUrl}')`);
-                            return;
-                        }
-                    }
-                }
-                
-                // Use default avatar
-                if (!avatarSrc.startsWith("/") && !avatarSrc.startsWith("http")) {
-                    avatarSrc = "/" + avatarSrc;
-                }
-                const escapedSrc = avatarSrc.replace(/['"()\s]/g, "\\$&");
-                message.style.setProperty(CONSTANTS.CSS_VARS.MESSAGE_AVATAR_URL, `url('${escapedSrc}')`);
+        /**
+         * Process individual message for avatar and UID
+         */
+        processMessage(message) {
+            // Set UID attribute for CSS targeting
+            const uid = this.getMessageAuthorUid(message);
+            if (!message.hasAttribute("csc-author-uid") && uid) {
+                message.setAttribute("csc-author-uid", uid);
             }
+
+            // Process avatar image
+            const avatarImg = message.querySelector(".avatar img");
+            if (avatarImg) {
+                this.processAvatarImage(message, avatarImg);
+            }
+        },
+
+        /**
+         * Process avatar image with alternative image support
+         */
+        processAvatarImage(message, avatarImg) {
+            let avatarSrc = avatarImg.getAttribute("src");
+            if (!avatarSrc) return;
+
+            // Check for character-specific alternative image
+            const isUser = message.getAttribute("is_user") === "true";
+            if (!isUser && window.LightStylerGalleryManager) {
+                const altImageUrl = this.getAlternativeImageForMessage(message);
+                if (altImageUrl) {
+                    const cleanUrl = altImageUrl.startsWith('/') ? altImageUrl : `/${altImageUrl}`;
+                    message.style.setProperty(CONSTANTS.CSS_VARS.MESSAGE_AVATAR_URL, `url('${cleanUrl}')`);
+                    return;
+                }
+            }
+            
+            // Use default avatar
+            if (!avatarSrc.startsWith("/") && !avatarSrc.startsWith("http")) {
+                avatarSrc = "/" + avatarSrc;
+            }
+            const escapedSrc = Utils.escapeCssUrl(avatarSrc);
+            message.style.setProperty(CONSTANTS.CSS_VARS.MESSAGE_AVATAR_URL, `url('${escapedSrc}')`);
+        },
+
+        /**
+         * Get alternative image URL for a message
+         */
+        getAlternativeImageForMessage(message) {
+            const nameElement = message.querySelector(".name_text");
+            const charName = nameElement ? nameElement.textContent.trim() : null;
+            
+            if (charName && window.LightStylerGalleryManager) {
+                return window.LightStylerGalleryManager.getCharacterAlternativeImage(charName);
+            }
+            
+            return null;
+        },
+
+        /**
+         * Process all visible messages
+         */
+        processAllMessages() {
+            document.querySelectorAll(`${CONSTANTS.DOM.CHAT_CONTAINER} ${CONSTANTS.DOM.CHAT_MESSAGE}`)
+                .forEach(message => this.processMessage(message));
         }
-    }
+    };
 
-    function processAllMessages() {
-        document.querySelectorAll(`${CONSTANTS.DOM.CHAT_CONTAINER} ${CONSTANTS.DOM.CHAT_MESSAGE}`).forEach(processMessage);
-    }
+    // Export for gallery manager to use
+    window.LightStyler = { 
+        processAllMessages: () => MessageProcessor.processAllMessages() 
+    };
 
-    // Export processAllMessages for gallery manager to use
-    window.LightStyler = { processAllMessages };
+    //================================================================================
+    // THEME & UI MANAGEMENT
+    //================================================================================
+
+    const ThemeManager = {
+        /**
+         * Enable or disable Whisper Light theme
+         */
+        setWhisperLightEnabled(enabled) {
+            const styleTag = document.getElementById(CONSTANTS.DOM.STYLESHEET_ID);
+            const themeSettings = document.getElementById(CONSTANTS.DOM.THEME_SETTINGS_CONTAINER);
+
+            if (enabled) {
+                this.loadStylesheet();
+                if (themeSettings) themeSettings.style.display = "";
+                this.updateStyles();
+            } else {
+                if (styleTag) styleTag.remove();
+                if (themeSettings) themeSettings.style.display = "none";
+                this.clearCssVariables();
+            }
+        },
+
+        /**
+         * Load the stylesheet if not already loaded
+         */
+        loadStylesheet() {
+            if (!document.getElementById(CONSTANTS.DOM.STYLESHEET_ID)) {
+                const newStyleTag = document.createElement("link");
+                newStyleTag.id = CONSTANTS.DOM.STYLESHEET_ID;
+                newStyleTag.rel = "stylesheet";
+                newStyleTag.type = "text/css";
+                newStyleTag.href = CONSTANTS.PATHS.STYLESHEET;
+                document.head.appendChild(newStyleTag);
+            }
+        },
+
+        /**
+         * Update CSS custom properties based on settings
+         */
+        updateStyles() {
+            if (!Utils.getSettings().whisperLight) return;
+
+            const elementIds = {
+                avatarWidth: CONSTANTS.DOM.AVATAR_WIDTH_INPUT,
+                editOffset: CONSTANTS.DOM.EDIT_OFFSET_INPUT,
+                personaBannerPos: CONSTANTS.DOM.PERSONA_BANNER_POS_INPUT,
+                characterBannerPos: CONSTANTS.DOM.CHARACTER_BANNER_POS_INPUT,
+            };
+
+            const elements = Utils.getElements(elementIds);
+            if (Object.keys(elements).length !== Object.keys(elementIds).length) return;
+
+            document.documentElement.style.setProperty(CONSTANTS.CSS_VARS.AVATAR_WIDTH, `${elements.avatarWidth.value}px`);
+            document.documentElement.style.setProperty(CONSTANTS.CSS_VARS.EDIT_OFFSET, `${elements.editOffset.value}px`);
+            document.documentElement.style.setProperty(CONSTANTS.CSS_VARS.PERSONA_BANNER, `${elements.personaBannerPos.value}%`);
+            document.documentElement.style.setProperty(CONSTANTS.CSS_VARS.CHARACTER_BANNER, `${elements.characterBannerPos.value}%`);
+        },
+
+        /**
+         * Clear all CSS variables
+         */
+        clearCssVariables() {
+            const vars = Object.values(CONSTANTS.CSS_VARS);
+            vars.forEach(cssVar => {
+                document.documentElement.style.removeProperty(cssVar);
+            });
+        }
+    };
 
     //================================================================================
     // GALLERY MANAGER INTEGRATION
     //================================================================================
 
-    async function loadGalleryManager() {
-        if (window.LightStylerGalleryManager) return;
-        
-        try {
-            const script = document.createElement('script');
-            script.src = CONSTANTS.PATHS.GALLERY_MANAGER;
-            script.async = true;
-            document.head.appendChild(script);
+    const GalleryIntegration = {
+        /**
+         * Load gallery manager script
+         */
+        async loadGalleryManager() {
+            if (window.LightStylerGalleryManager) return;
             
-            await new Promise((resolve, reject) => {
-                script.onload = resolve;
-                script.onerror = reject;
+            try {
+                const script = document.createElement('script');
+                script.src = CONSTANTS.PATHS.GALLERY_MANAGER;
+                script.async = true;
+                document.head.appendChild(script);
+                
+                await new Promise((resolve, reject) => {
+                    script.onload = resolve;
+                    script.onerror = reject;
+                });
+                
+                if (window.LightStylerGalleryManager) {
+                    await window.LightStylerGalleryManager.init();
+                }
+            } catch (error) {
+                console.error('Failed to load gallery manager:', error);
+            }
+        },
+
+        /**
+         * Setup gallery UI elements and event handlers
+         */
+        async setupGalleryUI() {
+            const elementIds = {
+                characterSelect: CONSTANTS.DOM.CHARACTER_SELECT,
+                imageSelect: CONSTANTS.DOM.IMAGE_SELECT,
+                imageSelection: CONSTANTS.DOM.IMAGE_SELECTION_CONTAINER,
+                refreshButton: CONSTANTS.DOM.REFRESH_CHARACTERS_BUTTON,
+                previewButton: CONSTANTS.DOM.PREVIEW_IMAGE_BUTTON,
+                applyButton: CONSTANTS.DOM.APPLY_IMAGE_BUTTON,
+                resetButton: CONSTANTS.DOM.RESET_CHARACTER_BUTTON,
+                previewContainer: CONSTANTS.DOM.IMAGE_PREVIEW_CONTAINER,
+                previewImg: CONSTANTS.DOM.PREVIEW_IMG,
+            };
+
+            const elements = Utils.getElements(elementIds);
+            if (Object.keys(elements).length !== Object.keys(elementIds).length) return;
+
+            // Setup event handlers
+            this.setupGalleryEvents(elements);
+            
+            // Initial load
+            await this.loadCharacters(elements);
+        },
+
+        /**
+         * Setup all gallery-related event handlers
+         */
+        setupGalleryEvents(elements) {
+            elements.refreshButton.addEventListener('click', async () => {
+                await this.loadCharacters(elements);
+                Utils.showNotification('Character list refreshed', 'info');
             });
             
-            if (window.LightStylerGalleryManager) {
-                await window.LightStylerGalleryManager.init();
-            }
-        } catch (error) {
-            console.error('Failed to load gallery manager:', error);
-        }
-    }
+            elements.characterSelect.addEventListener('change', () => 
+                this.loadCharacterImages(elements));
+            
+            elements.imageSelect.addEventListener('change', () => 
+                this.previewImage(elements));
+            
+            elements.previewButton.addEventListener('click', () => 
+                this.previewImage(elements));
+            
+            elements.applyButton.addEventListener('click', () => 
+                this.applyImage(elements));
+            
+            elements.resetButton.addEventListener('click', () => 
+                this.resetCharacter(elements));
+        },
 
-    async function setupGalleryUI() {
-        const elements = {
-            characterSelect: document.getElementById(CONSTANTS.DOM.CHARACTER_SELECT),
-            imageSelect: document.getElementById(CONSTANTS.DOM.IMAGE_SELECT),
-            imageSelection: document.getElementById(CONSTANTS.DOM.IMAGE_SELECTION_CONTAINER),
-            refreshButton: document.getElementById(CONSTANTS.DOM.REFRESH_CHARACTERS_BUTTON),
-            previewButton: document.getElementById(CONSTANTS.DOM.PREVIEW_IMAGE_BUTTON),
-            applyButton: document.getElementById(CONSTANTS.DOM.APPLY_IMAGE_BUTTON),
-            resetButton: document.getElementById(CONSTANTS.DOM.RESET_CHARACTER_BUTTON),
-            previewContainer: document.getElementById(CONSTANTS.DOM.IMAGE_PREVIEW_CONTAINER),
-            previewImg: document.getElementById(CONSTANTS.DOM.PREVIEW_IMG),
-        };
-
-        if (!Object.values(elements).every(el => el)) return;
-
-        // Load characters and set current character as selected
-        async function loadCharacters() {
+        /**
+         * Load and populate character dropdown
+         */
+        async loadCharacters(elements) {
             if (!window.LightStylerGalleryManager) return;
             
             elements.characterSelect.innerHTML = '<option value="">Select a character...</option>';
@@ -221,12 +423,14 @@ jQuery(function () {
             // Auto-select current character if available
             if (currentChar && folders.includes(currentChar)) {
                 elements.characterSelect.value = currentChar;
-                await loadCharacterImages(); // Auto-load images for current character
+                await this.loadCharacterImages(elements);
             }
-        }
+        },
 
-        // Load images for selected character
-        async function loadCharacterImages() {
+        /**
+         * Load images for selected character
+         */
+        async loadCharacterImages(elements) {
             const selectedChar = elements.characterSelect.value;
             if (!selectedChar || !window.LightStylerGalleryManager) {
                 elements.imageSelection.style.display = 'none';
@@ -237,7 +441,6 @@ jQuery(function () {
             const images = await window.LightStylerGalleryManager.getCharacterImages(selectedChar);
             
             if (images.length === 0) {
-                // No images found for this character
                 const option = document.createElement('option');
                 option.value = '';
                 option.textContent = 'No images found - use Gallery extension to add images';
@@ -256,14 +459,16 @@ jQuery(function () {
             const currentImage = window.LightStylerGalleryManager.getCharacterAlternativeImage(selectedChar);
             if (currentImage) {
                 elements.imageSelect.value = currentImage;
-                previewImage(); // Auto-preview current selection
+                this.previewImage(elements);
             }
 
             elements.imageSelection.style.display = 'block';
-        }
+        },
 
-        // Preview selected image
-        function previewImage() {
+        /**
+         * Preview selected image
+         */
+        previewImage(elements) {
             const selectedImage = elements.imageSelect.value;
             if (selectedImage) {
                 elements.previewImg.src = selectedImage;
@@ -271,10 +476,12 @@ jQuery(function () {
             } else {
                 elements.previewContainer.style.display = 'none';
             }
-        }
+        },
 
-        // Apply selected image
-        function applyImage() {
+        /**
+         * Apply selected image or reset to default
+         */
+        applyImage(elements) {
             const selectedChar = elements.characterSelect.value;
             const selectedImage = elements.imageSelect.value;
             
@@ -282,268 +489,273 @@ jQuery(function () {
 
             if (selectedImage) {
                 window.LightStylerGalleryManager.setCharacterAlternativeImage(selectedChar, selectedImage);
-                if (window.toastr) {
-                    toastr.success(`Alternative image applied for ${selectedChar}`);
-                }
+                Utils.showNotification(`Alternative image applied for ${selectedChar}`);
             } else {
                 window.LightStylerGalleryManager.resetCharacterToDefault(selectedChar);
-                if (window.toastr) {
-                    toastr.success(`${selectedChar} reset to default avatar`);
-                }
+                Utils.showNotification(`${selectedChar} reset to default avatar`);
             }
             
             elements.previewContainer.style.display = 'none';
-        }
+        },
 
-        // Reset character to default
-        function resetCharacter() {
+        /**
+         * Reset character to default avatar
+         */
+        resetCharacter(elements) {
             const selectedChar = elements.characterSelect.value;
             if (!selectedChar || !window.LightStylerGalleryManager) return;
 
             window.LightStylerGalleryManager.resetCharacterToDefault(selectedChar);
             elements.imageSelect.value = '';
             elements.previewContainer.style.display = 'none';
-            if (window.toastr) {
-                toastr.success(`${selectedChar} reset to default avatar`);
-            }
+            Utils.showNotification(`${selectedChar} reset to default avatar`);
         }
-
-        // Event listeners
-        elements.refreshButton.addEventListener('click', async () => {
-            await loadCharacters();
-            if (window.toastr) {
-                toastr.info('Character list refreshed');
-            }
-        });
-        elements.characterSelect.addEventListener('change', loadCharacterImages);
-        elements.imageSelect.addEventListener('change', previewImage);
-        elements.previewButton.addEventListener('click', previewImage);
-        elements.applyButton.addEventListener('click', applyImage);
-        elements.resetButton.addEventListener('click', resetCharacter);
-
-        // Initial load
-        await loadCharacters();
-    }
+    };
 
     //================================================================================
-    // THEME & UI MANAGEMENT
+    // SETTINGS UI MANAGEMENT
     //================================================================================
 
-    function setWhisperLightEnabled(enabled) {
-        const styleTag = document.getElementById(CONSTANTS.DOM.STYLESHEET_ID);
-        const themeSettings = document.getElementById(CONSTANTS.DOM.THEME_SETTINGS_CONTAINER);
+    const SettingsManager = {
+        /**
+         * Setup Whisper Light toggle
+         */
+        setupWhisperLightToggle() {
+            const checkbox = document.getElementById(CONSTANTS.DOM.WHISPER_LIGHT_TOGGLE);
+            if (!checkbox) return;
 
-        if (enabled) {
-            if (!styleTag) {
-                const newStyleTag = document.createElement("link");
-                newStyleTag.id = CONSTANTS.DOM.STYLESHEET_ID;
-                newStyleTag.rel = "stylesheet";
-                newStyleTag.type = "text/css";
-                newStyleTag.href = CONSTANTS.PATHS.STYLESHEET;
-                document.head.appendChild(newStyleTag);
+            const settings = Utils.getSettings();
+            checkbox.checked = settings.whisperLight;
+            ThemeManager.setWhisperLightEnabled(checkbox.checked);
+
+            checkbox.addEventListener("change", () => {
+                settings.whisperLight = checkbox.checked;
+                saveSettingsDebounced();
+                ThemeManager.setWhisperLightEnabled(checkbox.checked);
+            });
+        },
+
+        /**
+         * Setup theme-related UI controls
+         */
+        setupThemeSettings() {
+            const elementIds = {
+                largeModeRadio: CONSTANTS.DOM.LARGE_MODE_RADIO,
+                smallModeRadio: CONSTANTS.DOM.SMALL_MODE_RADIO,
+                avatarWidthInput: CONSTANTS.DOM.AVATAR_WIDTH_INPUT,
+                editOffsetInput: CONSTANTS.DOM.EDIT_OFFSET_INPUT,
+                resetButton: CONSTANTS.DOM.AVATAR_RESET_BUTTON,
+                personaBannerPosInput: CONSTANTS.DOM.PERSONA_BANNER_POS_INPUT,
+                characterBannerPosInput: CONSTANTS.DOM.CHARACTER_BANNER_POS_INPUT,
+                bannerPosResetButton: CONSTANTS.DOM.BANNER_POS_RESET_BUTTON,
+            };
+
+            const elements = Utils.getElements(elementIds);
+            if (Object.keys(elements).length !== Object.keys(elementIds).length) return;
+
+            this.setupModeControls(elements);
+            this.setupResetButtons(elements);
+            this.setupInputListeners(elements);
+            this.loadInitialState(elements);
+        },
+
+        /**
+         * Setup avatar mode radio buttons
+         */
+        setupModeControls(elements) {
+            const handleModeChange = (mode) => {
+                Utils.getSettings().avatarMode = mode;
+                saveSettingsDebounced();
+                this.applyMode(elements, mode);
+                ThemeManager.updateStyles();
+            };
+
+            elements.largeModeRadio.addEventListener("change", () => 
+                elements.largeModeRadio.checked && handleModeChange("large"));
+            
+            elements.smallModeRadio.addEventListener("change", () => 
+                elements.smallModeRadio.checked && handleModeChange("small"));
+        },
+
+        /**
+         * Setup reset buttons
+         */
+        setupResetButtons(elements) {
+            elements.resetButton.addEventListener("click", () => {
+                const settings = Utils.getSettings();
+                const mode = document.querySelector(CONSTANTS.DOM.AVATAR_MODE_RADIO_CHECKED).value;
+                settings[`avatar_width_${mode}`] = DEFAULT_SETTINGS[`avatar_width_${mode}`];
+                settings[`edit_offset_${mode}`] = DEFAULT_SETTINGS[`edit_offset_${mode}`];
+                saveSettingsDebounced();
+                this.applyMode(elements, mode);
+                ThemeManager.updateStyles();
+            });
+
+            elements.bannerPosResetButton.addEventListener("click", () => {
+                const settings = Utils.getSettings();
+                settings.personaBannerPos = DEFAULT_SETTINGS.personaBannerPos;
+                settings.characterBannerPos = DEFAULT_SETTINGS.characterBannerPos;
+                saveSettingsDebounced();
+                this.applyBannerPositions(elements);
+                ThemeManager.updateStyles();
+            });
+        },
+
+        /**
+         * Setup input field listeners
+         */
+        setupInputListeners(elements) {
+            elements.avatarWidthInput.addEventListener("input", 
+                Utils.createInputListener(() => `avatar_width_${Utils.getSettings().avatarMode}`));
+            
+            elements.editOffsetInput.addEventListener("input", 
+                Utils.createInputListener(() => `edit_offset_${Utils.getSettings().avatarMode}`));
+            
+            elements.personaBannerPosInput.addEventListener("input", 
+                Utils.createInputListener('personaBannerPos'));
+            
+            elements.characterBannerPosInput.addEventListener("input", 
+                Utils.createInputListener('characterBannerPos'));
+        },
+
+        /**
+         * Apply settings for a specific mode
+         */
+        applyMode(elements, mode) {
+            const settings = Utils.getSettings();
+            elements.avatarWidthInput.value = settings[`avatar_width_${mode}`] ?? DEFAULT_SETTINGS[`avatar_width_${mode}`];
+            elements.editOffsetInput.value = settings[`edit_offset_${mode}`] ?? DEFAULT_SETTINGS[`edit_offset_${mode}`];
+        },
+
+        /**
+         * Apply banner position settings
+         */
+        applyBannerPositions(elements) {
+            const settings = Utils.getSettings();
+            elements.personaBannerPosInput.value = settings.personaBannerPos ?? DEFAULT_SETTINGS.personaBannerPos;
+            elements.characterBannerPosInput.value = settings.characterBannerPos ?? DEFAULT_SETTINGS.characterBannerPos;
+        },
+
+        /**
+         * Load initial UI state from settings
+         */
+        loadInitialState(elements) {
+            const savedMode = Utils.getSettings().avatarMode;
+            if (savedMode === "small") {
+                elements.smallModeRadio.checked = true;
+            } else {
+                elements.largeModeRadio.checked = true;
             }
-            if (themeSettings) themeSettings.style.display = "";
-            updateThemeStyles();
-        } else {
-            if (styleTag) styleTag.remove();
-            if (themeSettings) themeSettings.style.display = "none";
-            document.documentElement.style.removeProperty(CONSTANTS.CSS_VARS.AVATAR_WIDTH);
-            document.documentElement.style.removeProperty(CONSTANTS.CSS_VARS.EDIT_OFFSET);
-            document.documentElement.style.removeProperty(CONSTANTS.CSS_VARS.PERSONA_BANNER);
-            document.documentElement.style.removeProperty(CONSTANTS.CSS_VARS.CHARACTER_BANNER);
+            this.applyMode(elements, savedMode);
+            this.applyBannerPositions(elements);
+            ThemeManager.updateStyles();
         }
-    }
-
-    function updateThemeStyles() {
-        if (!getSettings().whisperLight) return;
-
-        const elements = {
-            avatarWidth: document.getElementById(CONSTANTS.DOM.AVATAR_WIDTH_INPUT),
-            editOffset: document.getElementById(CONSTANTS.DOM.EDIT_OFFSET_INPUT),
-            personaBannerPos: document.getElementById(CONSTANTS.DOM.PERSONA_BANNER_POS_INPUT),
-            characterBannerPos: document.getElementById(CONSTANTS.DOM.CHARACTER_BANNER_POS_INPUT),
-        };
-
-        if (Object.values(elements).some(el => !el)) return;
-
-        document.documentElement.style.setProperty(CONSTANTS.CSS_VARS.AVATAR_WIDTH, `${elements.avatarWidth.value}px`);
-        document.documentElement.style.setProperty(CONSTANTS.CSS_VARS.EDIT_OFFSET, `${elements.editOffset.value}px`);
-        document.documentElement.style.setProperty(CONSTANTS.CSS_VARS.PERSONA_BANNER, `${elements.personaBannerPos.value}%`);
-        document.documentElement.style.setProperty(CONSTANTS.CSS_VARS.CHARACTER_BANNER, `${elements.characterBannerPos.value}%`);
-    }
+    };
 
     //================================================================================
     // INITIALIZATION
     //================================================================================
 
-    function setupWhisperLightToggle() {
-        const checkbox = document.getElementById(CONSTANTS.DOM.WHISPER_LIGHT_TOGGLE);
-        if (!checkbox) return;
+    const Initialization = {
+        /**
+         * Add LightStyler settings drawer to extension settings
+         */
+        async addLightStylerSettingsDrawer() {
+            if (document.getElementById(CONSTANTS.DOM.WHISPER_LIGHT_TOGGLE)) return;
 
-        const settings = getSettings();
-        checkbox.checked = settings.whisperLight;
-        setWhisperLightEnabled(checkbox.checked);
+            const settingsHtml = await $.get(CONSTANTS.PATHS.SETTINGS_HTML);
+            $(CONSTANTS.DOM.EXTENSIONS_SETTINGS).append(settingsHtml);
 
-        checkbox.addEventListener("change", () => {
-            settings.whisperLight = checkbox.checked;
-            saveSettingsDebounced();
-            setWhisperLightEnabled(checkbox.checked);
-        });
-    }
+            SettingsManager.setupWhisperLightToggle();
+            SettingsManager.setupThemeSettings();
+            
+            // Load gallery manager and setup UI
+            await GalleryIntegration.loadGalleryManager();
+            await GalleryIntegration.setupGalleryUI();
+            
+            if (Utils.getSettings().whisperLight) {
+                ThemeManager.updateStyles();
+            }
+        },
 
-    function setupThemeSettings() {
-        const elements = {
-            largeModeRadio: document.getElementById(CONSTANTS.DOM.LARGE_MODE_RADIO),
-            smallModeRadio: document.getElementById(CONSTANTS.DOM.SMALL_MODE_RADIO),
-            avatarWidthInput: document.getElementById(CONSTANTS.DOM.AVATAR_WIDTH_INPUT),
-            editOffsetInput: document.getElementById(CONSTANTS.DOM.EDIT_OFFSET_INPUT),
-            resetButton: document.getElementById(CONSTANTS.DOM.AVATAR_RESET_BUTTON),
-            personaBannerPosInput: document.getElementById(CONSTANTS.DOM.PERSONA_BANNER_POS_INPUT),
-            characterBannerPosInput: document.getElementById(CONSTANTS.DOM.CHARACTER_BANNER_POS_INPUT),
-            bannerPosResetButton: document.getElementById(CONSTANTS.DOM.BANNER_POS_RESET_BUTTON),
-        };
+        /**
+         * Setup chat observers and event listeners
+         */
+        setupChatObservers() {
+            // Observer for new chat messages
+            const chatObserver = new MutationObserver((mutations) => {
+                for (const mutation of mutations) {
+                    for (const node of mutation.addedNodes) {
+                        if (node.nodeType === 1 && node.classList.contains("mes")) {
+                            MessageProcessor.processMessage(node);
+                        }
+                    }
+                }
+            });
 
-        if (Object.values(elements).some(el => !el)) return;
+            const chatContainer = document.querySelector(CONSTANTS.DOM.CHAT_CONTAINER);
+            if (chatContainer) {
+                chatObserver.observe(chatContainer, { childList: true });
+                MessageProcessor.processAllMessages();
+            }
+        },
 
-        function applyMode(mode) {
-            const settings = getSettings();
-            elements.avatarWidthInput.value = settings[`avatar_width_${mode}`] ?? defaultSettings[`avatar_width_${mode}`];
-            elements.editOffsetInput.value = settings[`edit_offset_${mode}`] ?? defaultSettings[`edit_offset_${mode}`];
+        /**
+         * Setup SillyTavern event listeners
+         */
+        setupEventListeners() {
+            if (context?.internal?.eventSource) {
+                const { eventSource, event_types } = context.internal;
+                eventSource.on(event_types.CHAT_CHANGED, () => {
+                    MessageProcessor.processAllMessages();
+                    this.handleChatChanged();
+                });
+            }
+        },
+
+        /**
+         * Handle chat changed event for gallery integration
+         */
+        handleChatChanged() {
+            if (window.LightStylerGalleryManager) {
+                window.LightStylerGalleryManager.triggerImageUpdate();
+                
+                // Refresh gallery UI to show current character
+                setTimeout(() => {
+                    const characterSelect = document.getElementById(CONSTANTS.DOM.CHARACTER_SELECT);
+                    const currentChar = window.LightStylerGalleryManager.getCurrentCharacterName();
+                    if (characterSelect && currentChar) {
+                        characterSelect.value = currentChar;
+                        // Trigger change event to load images
+                        const event = new Event('change');
+                        characterSelect.dispatchEvent(event);
+                    }
+                }, 200);
+            }
+        },
+
+        /**
+         * Setup settings panel observer
+         */
+        setupSettingsObserver() {
+            const settingsObserver = new MutationObserver(() => {
+                if (document.querySelector(CONSTANTS.DOM.EXTENSIONS_SETTINGS)) {
+                    this.addLightStylerSettingsDrawer();
+                    settingsObserver.disconnect();
+                }
+            });
+            settingsObserver.observe(document.body, { childList: true, subtree: true });
         }
-
-        function applyBannerPositions() {
-            const settings = getSettings();
-            elements.personaBannerPosInput.value = settings.personaBannerPos ?? defaultSettings.personaBannerPos;
-            elements.characterBannerPosInput.value = settings.characterBannerPos ?? defaultSettings.characterBannerPos;
-        }
-
-        // Event Listeners
-        elements.resetButton.addEventListener("click", () => {
-            const settings = getSettings();
-            const mode = document.querySelector(CONSTANTS.DOM.AVATAR_MODE_RADIO_CHECKED).value;
-            settings[`avatar_width_${mode}`] = defaultSettings[`avatar_width_${mode}`];
-            settings[`edit_offset_${mode}`] = defaultSettings[`edit_offset_${mode}`];
-            saveSettingsDebounced();
-            applyMode(mode);
-            updateThemeStyles();
-        });
-
-        elements.bannerPosResetButton.addEventListener("click", () => {
-            const settings = getSettings();
-            settings.personaBannerPos = defaultSettings.personaBannerPos;
-            settings.characterBannerPos = defaultSettings.characterBannerPos;
-            saveSettingsDebounced();
-            applyBannerPositions();
-            updateThemeStyles();
-        });
-
-        const handleModeChange = (mode) => {
-            getSettings().avatarMode = mode;
-            saveSettingsDebounced();
-            applyMode(mode);
-            updateThemeStyles();
-        };
-
-        elements.largeModeRadio.addEventListener("change", () => elements.largeModeRadio.checked && handleModeChange("large"));
-        elements.smallModeRadio.addEventListener("change", () => elements.smallModeRadio.checked && handleModeChange("small"));
-
-        const createInputListener = (keyProvider) => (event) => {
-            const settings = getSettings();
-            const key = typeof keyProvider === 'function' ? keyProvider() : keyProvider;
-            settings[key] = event.target.value;
-            saveSettingsDebounced();
-            updateThemeStyles();
-        };
-
-        elements.avatarWidthInput.addEventListener("input", createInputListener(() => `avatar_width_${getSettings().avatarMode}`));
-        elements.editOffsetInput.addEventListener("input", createInputListener(() => `edit_offset_${getSettings().avatarMode}`));
-        elements.personaBannerPosInput.addEventListener("input", createInputListener('personaBannerPos'));
-        elements.characterBannerPosInput.addEventListener("input", createInputListener('characterBannerPos'));
-
-        // Load initial state
-        const savedMode = getSettings().avatarMode;
-        if (savedMode === "small") {
-            elements.smallModeRadio.checked = true;
-        } else {
-            elements.largeModeRadio.checked = true;
-        }
-        applyMode(savedMode);
-        applyBannerPositions();
-        updateThemeStyles();
-    }
-
-    async function addLightStylerSettingsDrawer() {
-        if (document.getElementById(CONSTANTS.DOM.WHISPER_LIGHT_TOGGLE)) return;
-
-        const settingsHtml = await $.get(CONSTANTS.PATHS.SETTINGS_HTML);
-        $(CONSTANTS.DOM.EXTENSIONS_SETTINGS).append(settingsHtml);
-
-        setupWhisperLightToggle();
-        setupThemeSettings();
-        
-        // Load gallery manager and setup UI
-        await loadGalleryManager();
-        await setupGalleryUI();
-        
-        if (getSettings().whisperLight) {
-            updateThemeStyles();
-        }
-    }
+    };
 
     //================================================================================
     // MAIN EXECUTION
     //================================================================================
 
     function main() {
-        // Observer for chat messages
-        const chatObserver = new MutationObserver((mutations) => {
-            for (const mutation of mutations) {
-                for (const node of mutation.addedNodes) {
-                    if (node.nodeType === 1 && node.classList.contains("mes")) {
-                        processMessage(node);
-                    }
-                }
-            }
-        });
-
-        const chatContainer = document.querySelector(CONSTANTS.DOM.CHAT_CONTAINER);
-        if (chatContainer) {
-            chatObserver.observe(chatContainer, { childList: true });
-            processAllMessages();
-        }
-
-        // Listener for chat changes (e.g., loading a new chat)
-        if (context?.internal?.eventSource) {
-            const { eventSource, event_types } = context.internal;
-            eventSource.on(event_types.CHAT_CHANGED, () => {
-                processAllMessages();
-                // Update character override when switching characters
-                if (window.LightStylerGalleryManager) {
-                    window.LightStylerGalleryManager.updateAllCharacterImages();
-                    
-                    // Also refresh the gallery UI to show current character
-                    setTimeout(() => {
-                        const characterSelect = document.getElementById(CONSTANTS.DOM.CHARACTER_SELECT);
-                        const currentChar = window.LightStylerGalleryManager.getCurrentCharacterName();
-                        if (characterSelect && currentChar) {
-                            characterSelect.value = currentChar;
-                            // Trigger change event to load images
-                            const event = new Event('change');
-                            characterSelect.dispatchEvent(event);
-                        }
-                    }, 200);
-                }
-            });
-        }
-
-        // Observer for the settings panel
-        const settingsObserver = new MutationObserver(() => {
-            if (document.querySelector(CONSTANTS.DOM.EXTENSIONS_SETTINGS)) {
-                addLightStylerSettingsDrawer();
-                settingsObserver.disconnect();
-            }
-        });
-        settingsObserver.observe(document.body, { childList: true, subtree: true });
+        Initialization.setupChatObservers();
+        Initialization.setupEventListeners();
+        Initialization.setupSettingsObserver();
     }
 
     main();

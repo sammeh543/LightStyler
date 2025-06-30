@@ -1,5 +1,5 @@
 /**
- * Gallery Manager for LightStyler Extension
+ * Gallery Manager for LightStyler Extension v20
  * Manages alternative character header images using SillyTavern's Gallery extension
  */
 
@@ -25,6 +25,68 @@ const GalleryManager = {
     },
 
     /**
+     * Get extensionSettings with proper initialization
+     */
+    getExtensionSettings() {
+        const context = this.getContext();
+        if (!context) return null;
+        
+        const { extensionSettings } = context;
+        if (!extensionSettings.LightStyler) {
+            extensionSettings.LightStyler = {};
+        }
+        if (!extensionSettings.LightStyler.characterImages) {
+            extensionSettings.LightStyler.characterImages = {};
+        }
+        
+        return extensionSettings.LightStyler;
+    },
+
+    /**
+     * Handle API errors consistently
+     */
+    handleApiError(error, operation) {
+        console.error(`LightStyler Gallery: Error during ${operation}:`, error);
+        return [];
+    },
+
+    /**
+     * Get request headers for API calls
+     */
+    getRequestHeaders() {
+        const context = this.getContext();
+        if (context && typeof context.getRequestHeaders === 'function') {
+            return context.getRequestHeaders();
+        }
+        
+        // Fallback headers
+        return {
+            'Content-Type': 'application/json',
+        };
+    },
+
+    /**
+     * Make API request with error handling
+     */
+    async makeApiRequest(url, options = {}) {
+        try {
+            const response = await fetch(url, {
+                headers: this.getRequestHeaders(),
+                ...options
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            this.handleApiError(error, `API request to ${url}`);
+            return null;
+        }
+    },
+
+    /**
      * Get available images for a specific character
      * @param {string} characterName - Name of the character
      * @returns {Promise<Array>} Array of image objects
@@ -37,37 +99,26 @@ const GalleryManager = {
             return this.imageCache.get(characterName);
         }
 
-        try {
-            const response = await fetch('/api/images/list', {
-                method: 'POST',
-                headers: this.getRequestHeaders(),
-                body: JSON.stringify({
-                    folder: characterName,
-                    sortField: 'date',
-                    sortOrder: 'desc',
-                }),
-            });
+        const files = await this.makeApiRequest('/api/images/list', {
+            method: 'POST',
+            body: JSON.stringify({
+                folder: characterName,
+                sortField: 'date',
+                sortOrder: 'desc',
+            }),
+        });
 
-            if (!response.ok) {
-                console.warn(`Failed to fetch images for character: ${characterName}`);
-                return [];
-            }
+        if (!files) return [];
 
-            const files = await response.json();
-            const images = files.map(file => ({
-                filename: file,
-                url: `user/images/${encodeURIComponent(characterName)}/${encodeURIComponent(file)}`,
-                name: file.replace(/\.[^/.]+$/, '') // Remove extension for display
-            }));
+        const images = files.map(file => ({
+            filename: file,
+            url: `user/images/${encodeURIComponent(characterName)}/${encodeURIComponent(file)}`,
+            name: file.replace(/\.[^/.]+$/, '') // Remove extension for display
+        }));
 
-            // Cache the results
-            this.imageCache.set(characterName, images);
-            return images;
-
-        } catch (error) {
-            console.error('Error fetching character images:', error);
-            return [];
-        }
+        // Cache the results
+        this.imageCache.set(characterName, images);
+        return images;
     },
 
     /**
@@ -75,23 +126,13 @@ const GalleryManager = {
      * @returns {Promise<Array>} Array of character folder names
      */
     async getCharacterFolders() {
-        try {
-            const response = await fetch('/api/images/folders', {
-                method: 'POST',
-                headers: this.getRequestHeaders(),
-            });
+        const folders = await this.makeApiRequest('/api/images/folders', {
+            method: 'POST',
+        });
 
-            if (!response.ok) {
-                return [];
-            }
-
-            const folders = await response.json();
-            return folders.filter(folder => folder && folder.trim() !== '');
-
-        } catch (error) {
-            console.error('Error fetching character folders:', error);
-            return [];
-        }
+        if (!folders) return [];
+        
+        return folders.filter(folder => folder && folder.trim() !== '');
     },
 
     /**
@@ -115,6 +156,10 @@ const GalleryManager = {
     },
 
     /**
+     * Character selection and image management
+     */
+    
+    /**
      * Set alternative image for a character
      * @param {string} characterName - Name of the character
      * @param {string} imageUrl - URL of the alternative image
@@ -124,9 +169,7 @@ const GalleryManager = {
 
         this.currentSelections.set(characterName, imageUrl);
         this.saveSelections();
-        
-        // Trigger message reprocess to update all visible messages
-        this.updateAllCharacterImages();
+        this.triggerImageUpdate();
     },
 
     /**
@@ -138,9 +181,7 @@ const GalleryManager = {
 
         this.currentSelections.delete(characterName);
         this.saveSelections();
-        
-        // Trigger message reprocess to update all visible messages
-        this.updateAllCharacterImages();
+        this.triggerImageUpdate();
     },
 
     /**
@@ -154,10 +195,9 @@ const GalleryManager = {
     },
 
     /**
-     * Update all character images in the current chat
+     * Trigger image update across all messages
      */
-    updateAllCharacterImages() {
-        // Process all messages to apply character-specific overrides
+    triggerImageUpdate() {
         if (window.LightStyler?.processAllMessages) {
             // Small delay to ensure any previous operations are complete
             setTimeout(() => {
@@ -167,79 +207,73 @@ const GalleryManager = {
     },
 
     /**
+     * Settings persistence
+     */
+    
+    /**
      * Save current selections to extensionSettings
      */
     saveSelections() {
         try {
+            const settings = this.getExtensionSettings();
+            if (!settings) return;
+            
             const context = this.getContext();
-            if (!context) return;
-            
-            const { extensionSettings, saveSettingsDebounced } = context;
-            
-            if (!extensionSettings.LightStyler) {
-                extensionSettings.LightStyler = {};
-            }
-            
-            if (!extensionSettings.LightStyler.characterImages) {
-                extensionSettings.LightStyler.characterImages = {};
-            }
-            
-            extensionSettings.LightStyler.characterImages = Object.fromEntries(this.currentSelections);
-            saveSettingsDebounced();
+            settings.characterImages = Object.fromEntries(this.currentSelections);
+            context.saveSettingsDebounced();
         } catch (error) {
-            console.error('Error saving character image selections:', error);
+            this.handleApiError(error, 'saving character image selections');
         }
     },
 
     /**
-     * Load selections from extensionSettings
+     * Load selections from extensionSettings with migration support
      */
     loadSelections() {
         try {
-            const context = this.getContext();
-            if (!context) return;
+            const settings = this.getExtensionSettings();
+            if (!settings) return;
             
-            const { extensionSettings } = context;
-            
-            // Load from new extensionSettings location
-            if (extensionSettings.LightStyler?.characterImages) {
-                this.currentSelections = new Map(Object.entries(extensionSettings.LightStyler.characterImages));
+            // Load from extensionSettings
+            if (settings.characterImages) {
+                this.currentSelections = new Map(Object.entries(settings.characterImages));
             } else {
                 // Migration: check for old localStorage data
-                const oldSaved = localStorage.getItem('lightstyler_character_images');
-                if (oldSaved) {
-                    const selectionsObj = JSON.parse(oldSaved);
-                    this.currentSelections = new Map(Object.entries(selectionsObj));
-                    
-                    // Migrate to new storage and remove old
-                    this.saveSelections();
-                    localStorage.removeItem('lightstyler_character_images');
-                    console.log('LightStyler: Migrated character images from localStorage to extensionSettings');
-                } else {
-                    this.currentSelections = new Map();
-                }
+                this.migrateFromLocalStorage();
             }
         } catch (error) {
-            console.error('Error loading character image selections:', error);
+            this.handleApiError(error, 'loading character image selections');
             this.currentSelections = new Map();
         }
     },
 
     /**
-     * Get request headers for API calls
+     * Migrate old localStorage data to extensionSettings
      */
-    getRequestHeaders() {
-        const context = this.getContext();
-        if (context && typeof context.getRequestHeaders === 'function') {
-            return context.getRequestHeaders();
+    migrateFromLocalStorage() {
+        try {
+            const oldSaved = localStorage.getItem('lightstyler_character_images');
+            if (oldSaved) {
+                const selectionsObj = JSON.parse(oldSaved);
+                this.currentSelections = new Map(Object.entries(selectionsObj));
+                
+                // Migrate to new storage and remove old
+                this.saveSelections();
+                localStorage.removeItem('lightstyler_character_images');
+                console.log('LightStyler: Migrated character images from localStorage to extensionSettings');
+            } else {
+                this.currentSelections = new Map();
+            }
+        } catch (error) {
+            this.handleApiError(error, 'migrating from localStorage');
+            this.currentSelections = new Map();
         }
-        
-        // Fallback headers
-        return {
-            'Content-Type': 'application/json',
-        };
     },
 
+    /**
+     * Utility methods
+     */
+     
     /**
      * Clear cache for a specific character or all characters
      * @param {string} [characterName] - Character to clear cache for, or undefined for all
