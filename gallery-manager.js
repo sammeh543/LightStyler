@@ -185,6 +185,15 @@ const GalleryManager = {
     },
 
     /**
+     * Reset all characters to default avatars
+     */
+    resetAllCharacters() {
+        this.currentSelections.clear();
+        this.saveSelections();
+        this.triggerImageUpdate();
+    },
+
+    /**
      * Get alternative image for a character
      * @param {string} characterName - Name of the character
      * @returns {string|null} Alternative image URL or null for default

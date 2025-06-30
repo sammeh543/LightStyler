@@ -44,6 +44,7 @@ jQuery(function () {
             PERSONA_BANNER_POS_INPUT: 'lightstyler_persona_banner_pos',
             CHARACTER_BANNER_POS_INPUT: 'lightstyler_character_banner_pos',
             BANNER_POS_RESET_BUTTON: 'lightstyler_bannerpos_reset_button',
+            RESET_ALL_BUTTON: 'lightstyler_reset_all_button',
             EXTENSIONS_SETTINGS: '#extensions_settings',
             CHAT_CONTAINER: '#chat',
             CHAT_MESSAGE: '.mes',
@@ -548,6 +549,7 @@ jQuery(function () {
                 personaBannerPosInput: CONSTANTS.DOM.PERSONA_BANNER_POS_INPUT,
                 characterBannerPosInput: CONSTANTS.DOM.CHARACTER_BANNER_POS_INPUT,
                 bannerPosResetButton: CONSTANTS.DOM.BANNER_POS_RESET_BUTTON,
+                resetAllButton: CONSTANTS.DOM.RESET_ALL_BUTTON,
             };
 
             const elements = Utils.getElements(elementIds);
@@ -599,6 +601,11 @@ jQuery(function () {
                 this.applyBannerPositions(elements);
                 ThemeManager.updateStyles();
             });
+
+            // Reset All button
+            elements.resetAllButton.addEventListener("click", () => {
+                this.resetAllToDefault(elements);
+            });
         },
 
         /**
@@ -649,6 +656,78 @@ jQuery(function () {
             this.applyMode(elements, savedMode);
             this.applyBannerPositions(elements);
             ThemeManager.updateStyles();
+        },
+
+        /**
+         * Reset all settings to default values
+         */
+        resetAllToDefault(elements) {
+            if (!confirm('Reset all LightStyler settings to default?\n\nThis will:\n• Restore all theme settings to defaults\n• Clear alternative character image selections\n• Re-enable Whisper Light theme\n\nYour uploaded images will remain safe in the Gallery.')) {
+                return;
+            }
+
+            try {
+                // Reset all extension settings to defaults
+                extensionSettings[CONSTANTS.MODULE_NAME] = structuredClone(DEFAULT_SETTINGS);
+                
+                // Clear all alternative character images if gallery manager is available
+                if (window.LightStylerGalleryManager) {
+                    window.LightStylerGalleryManager.resetAllCharacters();
+                }
+                
+                // Update UI elements to reflect defaults
+                this.applyDefaultsToUI(elements);
+                
+                // Save settings and update theme
+                saveSettingsDebounced();
+                ThemeManager.setWhisperLightEnabled(DEFAULT_SETTINGS.whisperLight);
+                ThemeManager.updateStyles();
+                
+                // Refresh gallery UI if available
+                if (window.LightStylerGalleryManager) {
+                    const characterSelect = document.getElementById(CONSTANTS.DOM.CHARACTER_SELECT);
+                    if (characterSelect) {
+                        characterSelect.value = '';
+                        const imageSelection = document.getElementById(CONSTANTS.DOM.IMAGE_SELECTION_CONTAINER);
+                        if (imageSelection) {
+                            imageSelection.style.display = 'none';
+                        }
+                    }
+                }
+                
+                Utils.showNotification('All LightStyler settings reset to default!', 'success');
+            } catch (error) {
+                console.error('LightStyler: Error resetting all settings:', error);
+                Utils.showNotification('Error resetting settings. Check console for details.', 'error');
+            }
+        },
+
+        /**
+         * Apply default values to all UI elements
+         */
+        applyDefaultsToUI(elements) {
+            // Set Whisper Light toggle
+            const whisperToggle = document.getElementById(CONSTANTS.DOM.WHISPER_LIGHT_TOGGLE);
+            if (whisperToggle) {
+                whisperToggle.checked = DEFAULT_SETTINGS.whisperLight;
+            }
+            
+            // Set avatar mode radio buttons
+            if (DEFAULT_SETTINGS.avatarMode === 'small') {
+                elements.smallModeRadio.checked = true;
+                elements.largeModeRadio.checked = false;
+            } else {
+                elements.largeModeRadio.checked = true;
+                elements.smallModeRadio.checked = false;
+            }
+            
+            // Apply mode-specific defaults
+            this.applyMode(elements, DEFAULT_SETTINGS.avatarMode);
+            
+            // Set banner position inputs
+            elements.personaBannerPosInput.value = DEFAULT_SETTINGS.personaBannerPos;
+            elements.characterBannerPosInput.value = DEFAULT_SETTINGS.characterBannerPos;
+            this.applyBannerPositions(elements);
         }
     };
 
