@@ -1,14 +1,16 @@
 /*
 ================================================================================
-  MODERN & DYNAMIC MESSAGE LAYOUT v20 by AI Archaea
+  MODERN & DYNAMIC MESSAGE LAYOUT v21 by AI Archaea
 ================================================================================
   AUTHORS: AI Archaea & AI Assistant(Gemini Pro 2.5)
-  LAST UPDATED: June 29, 2025
+  LAST UPDATED: June 30, 2025
 
   FEATURES:
   - Large and small avatars with word wrapping
   - Header with avatar and ability to reposition image 
   - repositioned meta info
+  - Fixed positioning during swipe animations
+  - Support for reasoning blocks without button overlap
 ================================================================================
 */
 
@@ -82,6 +84,7 @@
   .mes .mes_block {
     display: block !important; /* Changed from flex to block */
     overflow-x: visible !important; /* Key for word wrap fix! */
+    transform: none !important; /* Override SillyTavern's swipe transforms */
   }
 
 
@@ -161,7 +164,7 @@
     overflow: visible !important;
     width: calc(100% - var(--info-block-base-left));
     justify-content: space-between;
-
+    transform: none !important; /* Prevent transform inheritance */
   }
 
   .ch_name .flex1 {
@@ -178,6 +181,7 @@
     font-family: var(--header-name-font) !important;
     font-size: var(--header-name-size) !important;
     color: var(--header-name-color) !important;
+    transform: none !important; /* Prevent transform inheritance */
     /* text-shadow: var(--header-name-glow) !important; */
   }
 
@@ -227,6 +231,24 @@
     font-size: 16px;
     order: 2; 
 	position: relative;
+  }
+
+  /* Reasoning block styling to prevent overlap with buttons */
+  .mes .mes_reasoning_details {
+    margin-top: 10px !important;
+    margin-bottom: 10px !important;
+    padding-right: 100px !important; /* Give space for buttons */
+  }
+
+  .mes .mes_reasoning_summary {
+    padding-right: 50px !important; /* Additional padding for summary */
+  }
+
+  /* Move reasoning actions down to avoid overlap with edit buttons */
+  .mes .mes_reasoning_actions {
+    position: relative !important;
+    top: 15px !important; /* Push reasoning actions down */
+    z-index: 4 !important; /* Keep below our edit buttons */
   }
 
   /* THE BUTTONS FIX: Buttons are now positioned using flexbox,
