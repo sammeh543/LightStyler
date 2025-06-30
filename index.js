@@ -45,6 +45,8 @@ jQuery(function () {
             CHARACTER_BANNER_POS_INPUT: 'lightstyler_character_banner_pos',
             BANNER_POS_RESET_BUTTON: 'lightstyler_bannerpos_reset_button',
             RESET_ALL_BUTTON: 'lightstyler_reset_all_button',
+            CHARACTER_INDICATOR: 'lightstyler_character_indicator',
+            CHARACTER_NAME_DISPLAY: 'lightstyler_character_name',
             EXTENSIONS_SETTINGS: '#extensions_settings',
             CHAT_CONTAINER: '#chat',
             CHAT_MESSAGE: '.mes',
@@ -79,6 +81,221 @@ jQuery(function () {
         edit_offset_small: 90,
         personaBannerPos: 15,
         characterBannerPos: 27,
+        // Per-character settings storage
+        characterPositions: {},
+    };
+
+    //================================================================================
+    // CHARACTER POSITION MANAGEMENT
+    //================================================================================
+
+    const CharacterPositionManager = {
+        currentCharacter: null,
+        isLoadingCharacterSettings: false,
+
+        /**
+         * Get current active character name
+         */
+        getCurrentCharacterName() {
+            const context = SillyTavern.getContext();
+            if (!context) return null;
+
+            // Check if in group chat
+            if (context.groupId) return null; // We'll use global settings for group chats
+
+            // Method 1: Try context.characterId and context.characters
+            if (context.characterId !== undefined && context.characters && context.characters[context.characterId]) {
+                const charName = context.characters[context.characterId].name;
+                return charName;
+            }
+
+            // Method 2: Try to get from selected character directly
+            if (context.characters && context.characters.length > 0) {
+                const activeChar = context.characters.find(char => char.selected || char.active);
+                if (activeChar) return activeChar.name;
+            }
+
+            // Method 3: Try to get from chat metadata or current chat
+            if (context.chat && context.chat.length > 0) {
+                for (let i = context.chat.length - 1; i >= 0; i--) {
+                    const message = context.chat[i];
+                    if (!message.is_user && message.name) return message.name;
+                }
+            }
+
+            // Method 4: Try global character reference
+            if (window.this_chid !== undefined && context.characters && context.characters[window.this_chid]) {
+                const charName = context.characters[window.this_chid].name;
+                return charName;
+            }
+
+            return null;
+        },
+
+        /**
+         * Save current character settings before switching (called manually)
+         */
+        saveBeforeSwitch() {
+            if (this.currentCharacter) {
+                console.log('LightStyler: Manual save before character switch for:', this.currentCharacter);
+                this.saveCurrentCharacterPositions();
+            }
+        },
+
+        /**
+         * Save current position settings for the active character
+         */
+        saveCurrentCharacterPositions() {
+            const characterName = this.getCurrentCharacterName();
+            if (!characterName) return; // Use global settings for group chats or when no character
+
+            const settings = Utils.getSettings();
+            if (!settings.characterPositions) {
+                settings.characterPositions = {};
+            }
+
+            // Save current banner positions for this character
+            settings.characterPositions[characterName] = {
+                personaBannerPos: settings.personaBannerPos,
+                characterBannerPos: settings.characterBannerPos,
+            };
+
+            console.log('LightStyler: Saved positions for', characterName, '- Persona:', settings.personaBannerPos, 'Character:', settings.characterBannerPos);
+            saveSettingsDebounced();
+        },
+
+        /**
+         * Load position settings for a character
+         */
+        loadCharacterPositions(characterName) {
+            if (!characterName) return false;
+
+            const settings = Utils.getSettings();
+            const characterSettings = settings.characterPositions?.[characterName];
+            
+            if (!characterSettings) return false; // No saved settings for this character
+
+            // Update global settings with character-specific values
+            settings.personaBannerPos = characterSettings.personaBannerPos;
+            settings.characterBannerPos = characterSettings.characterBannerPos;
+
+            return true;
+        },
+
+        /**
+         * Handle character change
+         */
+        handleCharacterChange() {
+            const newCharacter = this.getCurrentCharacterName();
+            
+            // Only proceed if there's an actual character change
+            if (newCharacter === this.currentCharacter) {
+                return;
+            }
+
+            // Store current values before switching (for potential future use)
+            if (this.currentCharacter) {
+                const settings = Utils.getSettings();
+                const previousSettings = {
+                    character: this.currentCharacter,
+                    personaBannerPos: settings.personaBannerPos,
+                    characterBannerPos: settings.characterBannerPos
+                };
+            }
+
+            // Load settings for new character
+            if (newCharacter) {
+                const loaded = this.loadCharacterPositions(newCharacter);
+                if (loaded) {
+                    // Update UI to reflect loaded settings
+                    setTimeout(() => {
+                        this.updateBannerPositionInputs();
+                        ThemeManager.updateStyles();
+                    }, 50);
+                } else {
+                    // No saved settings for this character, use defaults
+                    const settings = Utils.getSettings();
+                    settings.personaBannerPos = DEFAULT_SETTINGS.personaBannerPos;
+                    settings.characterBannerPos = DEFAULT_SETTINGS.characterBannerPos;
+                    setTimeout(() => {
+                        this.updateBannerPositionInputs();
+                        ThemeManager.updateStyles();
+                    }, 50);
+                }
+            }
+
+            this.currentCharacter = newCharacter;
+            this.updateCharacterIndicator();
+        },
+
+        /**
+         * Update character indicator in the UI
+         */
+        updateCharacterIndicator() {
+            const indicatorElement = document.getElementById(CONSTANTS.DOM.CHARACTER_INDICATOR);
+            const nameElement = document.getElementById(CONSTANTS.DOM.CHARACTER_NAME_DISPLAY);
+            
+            if (!indicatorElement || !nameElement) return;
+
+            if (this.currentCharacter) {
+                nameElement.textContent = this.currentCharacter;
+                indicatorElement.style.display = 'block';
+            } else {
+                indicatorElement.style.display = 'none';
+            }
+        },
+
+        /**
+         * Update banner position inputs in the UI
+         */
+        updateBannerPositionInputs() {
+            const elementIds = {
+                personaBannerPos: CONSTANTS.DOM.PERSONA_BANNER_POS_INPUT,
+                characterBannerPos: CONSTANTS.DOM.CHARACTER_BANNER_POS_INPUT,
+            };
+
+            const elements = Utils.getElements(elementIds);
+            if (Object.keys(elements).length !== Object.keys(elementIds).length) {
+                console.log('LightStyler: Banner position input elements not found');
+                return;
+            }
+
+            // Set flag to prevent saving during loading
+            this.isLoadingCharacterSettings = true;
+
+            const settings = Utils.getSettings();
+            elements.personaBannerPos.value = settings.personaBannerPos ?? DEFAULT_SETTINGS.personaBannerPos;
+            elements.characterBannerPos.value = settings.characterBannerPos ?? DEFAULT_SETTINGS.characterBannerPos;
+            
+            console.log('LightStyler: Updated UI inputs - Persona:', elements.personaBannerPos.value, 'Character:', elements.characterBannerPos.value);
+
+            // Clear flag after a short delay to allow DOM updates to complete
+            setTimeout(() => {
+                this.isLoadingCharacterSettings = false;
+            }, 100);
+        },
+
+        /**
+         * Reset character-specific position settings
+         */
+        resetCharacterPositions(characterName) {
+            if (!characterName) return;
+
+            const settings = Utils.getSettings();
+            if (settings.characterPositions && settings.characterPositions[characterName]) {
+                delete settings.characterPositions[characterName];
+                saveSettingsDebounced();
+            }
+        },
+
+        /**
+         * Reset all character-specific position settings
+         */
+        resetAllCharacterPositions() {
+            const settings = Utils.getSettings();
+            settings.characterPositions = {};
+            saveSettingsDebounced();
+        }
     };
 
     //================================================================================
@@ -144,6 +361,13 @@ jQuery(function () {
                 settings[key] = event.target.value;
                 saveSettingsDebounced();
                 ThemeManager.updateStyles();
+                
+                // If this is a banner position change, save it for the current character
+                // But only if we're not currently loading character settings
+                if ((key === 'personaBannerPos' || key === 'characterBannerPos') && 
+                    !CharacterPositionManager.isLoadingCharacterSettings) {
+                    CharacterPositionManager.saveCurrentCharacterPositions();
+                }
             };
         },
 
@@ -600,6 +824,9 @@ jQuery(function () {
                 saveSettingsDebounced();
                 this.applyBannerPositions(elements);
                 ThemeManager.updateStyles();
+                
+                // Save reset values for current character
+                CharacterPositionManager.saveCurrentCharacterPositions();
             });
 
             // Reset All button
@@ -662,7 +889,7 @@ jQuery(function () {
          * Reset all settings to default values
          */
         resetAllToDefault(elements) {
-            if (!confirm('Reset all LightStyler settings to default?\n\nThis will:\n• Restore all theme settings to defaults\n• Clear alternative character image selections\n• Re-enable Whisper Light theme\n\nYour uploaded images will remain safe in the Gallery.')) {
+            if (!confirm('Reset all LightStyler settings to default?\n\nThis will:\n• Restore all theme settings to defaults\n• Clear alternative character image selections\n• Clear all per-character position settings\n• Re-enable Whisper Light theme\n\nYour uploaded images will remain safe in the Gallery.')) {
                 return;
             }
 
@@ -674,6 +901,9 @@ jQuery(function () {
                 if (window.LightStylerGalleryManager) {
                     window.LightStylerGalleryManager.resetAllCharacters();
                 }
+
+                // Clear all character position settings
+                CharacterPositionManager.resetAllCharacterPositions();
                 
                 // Update UI elements to reflect defaults
                 this.applyDefaultsToUI(elements);
@@ -755,6 +985,44 @@ jQuery(function () {
             if (Utils.getSettings().whisperLight) {
                 ThemeManager.updateStyles();
             }
+
+            // Initialize character position manager
+            CharacterPositionManager.handleCharacterChange();
+            
+            // Update character indicator once UI is loaded - increase timeout
+            setTimeout(() => {
+                console.log('LightStyler: Delayed indicator update');
+                CharacterPositionManager.updateCharacterIndicator();
+            }, 500);
+
+            // Add manual test function to window for debugging
+            window.LightStylerDebug = {
+                testCharacterDetection: () => {
+                    console.log('=== LightStyler Debug Test ===');
+                    const context = SillyTavern.getContext();
+                    console.log('Context:', context);
+                    console.log('Character ID:', context?.characterId);
+                    console.log('Characters:', context?.characters);
+                    console.log('Current character:', CharacterPositionManager.getCurrentCharacterName());
+                    CharacterPositionManager.handleCharacterChange();
+                },
+                forceIndicatorUpdate: () => {
+                    CharacterPositionManager.updateCharacterIndicator();
+                },
+                showAllSavedPositions: () => {
+                    const settings = Utils.getSettings();
+                    console.log('=== All Saved Character Positions ===');
+                    console.log('Character Positions:', settings.characterPositions);
+                    console.log('Current Global Settings - Persona:', settings.personaBannerPos, 'Character:', settings.characterBannerPos);
+                    console.log('Current Character:', CharacterPositionManager.currentCharacter);
+                },
+                clearAllPositions: () => {
+                    const settings = Utils.getSettings();
+                    settings.characterPositions = {};
+                    saveSettingsDebounced();
+                    console.log('All character positions cleared');
+                }
+            };
         },
 
         /**
@@ -777,18 +1045,72 @@ jQuery(function () {
                 chatObserver.observe(chatContainer, { childList: true });
                 MessageProcessor.processAllMessages();
             }
+
+            // Additional observer for character changes by watching the chat container
+            const characterChangeObserver = new MutationObserver(() => {
+                // Debounce character change detection
+                clearTimeout(this.characterChangeTimeout);
+                this.characterChangeTimeout = setTimeout(() => {
+                    console.log('LightStyler: DOM mutation detected, checking for character change');
+                    CharacterPositionManager.handleCharacterChange();
+                }, 250);
+            });
+
+            // Watch for changes in the main chat area that might indicate a character change
+            if (chatContainer) {
+                characterChangeObserver.observe(chatContainer, { 
+                    childList: true, 
+                    subtree: true,
+                    attributes: true,
+                    attributeFilter: ['csc-author-uid']
+                });
+            }
         },
 
         /**
          * Setup SillyTavern event listeners
          */
         setupEventListeners() {
+            console.log('LightStyler: Setting up event listeners');
+            
             if (context?.internal?.eventSource) {
                 const { eventSource, event_types } = context.internal;
+                
+                console.log('LightStyler: Available event types:', Object.keys(event_types));
+                
                 eventSource.on(event_types.CHAT_CHANGED, () => {
+                    console.log('LightStyler: CHAT_CHANGED event received');
                     MessageProcessor.processAllMessages();
                     this.handleChatChanged();
+                    
+                    // Handle character position changes
+                    setTimeout(() => {
+                        CharacterPositionManager.handleCharacterChange();
+                    }, 100);
                 });
+
+                // Also listen for character selection changes if available
+                if (event_types.CHARACTER_SELECTED) {
+                    console.log('LightStyler: Setting up CHARACTER_SELECTED listener');
+                    eventSource.on(event_types.CHARACTER_SELECTED, () => {
+                        console.log('LightStyler: CHARACTER_SELECTED event received');
+                        setTimeout(() => {
+                            CharacterPositionManager.handleCharacterChange();
+                        }, 100);
+                    });
+                }
+
+                // Try to catch other relevant events
+                if (event_types.CHARACTER_EDITED) {
+                    eventSource.on(event_types.CHARACTER_EDITED, () => {
+                        console.log('LightStyler: CHARACTER_EDITED event received');
+                        setTimeout(() => {
+                            CharacterPositionManager.handleCharacterChange();
+                        }, 100);
+                    });
+                }
+            } else {
+                console.log('LightStyler: No event source available in context');
             }
         },
 

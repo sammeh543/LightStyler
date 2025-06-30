@@ -12,6 +12,7 @@ A comprehensive SillyTavern extension that enhances chat aesthetics with dynamic
   message using character/persona avatars. Inspired by Rivelle's MoonLit Echoes
   whipser theme.
 - **Banner Image Positioning** - Fine-tune Y-position (%) to perfectly frame banner images for both characters and personas
+- **🆕 Per-Character Position Settings** - Y-position settings are automatically saved and loaded for each character. When you switch between characters, their specific positioning preferences are remembered without needing any manual action or refresh.
 
 **Whisper Light Theme Toggle:**
 - **Selective Activation** - Enable/disable the full theme while keeping core
@@ -47,6 +48,29 @@ Tavern's" chat, it will apply it to Jane Silly's banner.
 
 **Auto-Refresh:** Click 🔃 to update the character list and auto-select the current character
 
+## 🔄 Per-Character Position Settings
+
+**Automatic Character Detection:**
+- The extension automatically detects when you switch between characters in SillyTavern
+- No refresh needed - position settings change instantly when switching chats
+
+**Smart Position Storage:**
+- Each character's Persona and Character Y-position settings are saved individually
+- When you adjust position settings, they're automatically saved for the current character
+- Switching to a different character loads their specific position preferences
+
+**Visual Indicators:**
+- A blue indicator box shows when character-specific settings are active
+- Displays the current character name and confirms settings are being saved per-character
+- Group chats use global settings (no character-specific saving)
+
+**How It Works:**
+1. Open any character chat - their stored position settings load automatically
+2. Adjust "Persona Image Y-Position (%)" or "Character Image Y-Position (%)" 
+3. Settings save instantly for that specific character
+4. Switch to another character - their unique settings load automatically
+5. Return to the first character - your previous adjustments are preserved
+
 ## 📋 Prerequisites
 
 - **SillyTavern** - Latest version recommended
@@ -74,4 +98,4 @@ It started as just a CSS Snippet and became this.
 
 
 ---
-*Created by AI Archaea - Enhancing SillyTavern conversations with style and functionality.*" 
+*Created by AI Archaea - Enhancing SillyTavern conversations with style and functionality.*"
