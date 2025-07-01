@@ -55,6 +55,11 @@
     /*--edit-buttons-top-offset: 390px;*/   /* DEPRECATED: Now controlled by index.js */
     --edit-buttons-right-offset: 25px;      /* Horizontal offset for the edit buttons. */
     
+    /* -- Reasoning Edit Button Offset Calculations -- */
+    /* These handle the container anchor differences between main edit and reasoning edit buttons */
+    --reasoning-edit-top-compensation: -100px;    /* Compensation for different container anchoring */
+    --reasoning-edit-right-compensation: -40px;   /* Compensation for different container anchoring */
+    
     /* -- Reasoning Block Controls -- */
     --reasoning-actions-offset: 15px;       /* How far down to push reasoning actions */
     --reasoning-button-space: 60px;         /* Space to reserve for reasoning buttons */
@@ -62,8 +67,6 @@
     --reasoning-header-width: 280px;        /* Fixed width for reasoning header block */
     --reasoning-header-right-offset: 100px; /* Right offset for reasoning header */
     --reasoning-textarea-right-margin: 10px; /* Right margin for reasoning textarea */
-    --reasoning-edit-actions-offset: 290px;   /* Extra offset for edit state buttons */
-    --reasoning-edit-button-right: -15px;     /* Right position for edit-only buttons */
   }
 
   /* --- Step 2: CORE MESSAGE STRUCTURE (Correct Float Method) --- */
@@ -306,8 +309,8 @@
 
   /* Adjust button positioning when in different states */
   .mes_reasoning_details:has(.reasoning_edit_textarea) .mes_reasoning_actions {
-    top: var(--reasoning-edit-actions-offset) !important; /* Move edit buttons down */
-    right: var(--reasoning-edit-button-right) !important; /* Adjust right position for edit mode */
+    top: calc(var(--edit-buttons-top-offset) + var(--reasoning-edit-top-compensation)) !important;
+    right: calc(var(--edit-buttons-right-offset) + var(--reasoning-edit-right-compensation)) !important;
   }
 
   /* THE BUTTONS FIX: Buttons are now positioned using flexbox,

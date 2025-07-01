@@ -40,8 +40,7 @@ jQuery(function () {
             SMALL_MODE_RADIO: 'lightstyler_small_avatar_mode',
             AVATAR_WIDTH_INPUT: 'lightstyler_avatar_width',
             EDIT_OFFSET_INPUT: 'lightstyler_edit_offset',
-            REASONING_EDIT_OFFSET_INPUT: 'lightstyler_reasoning_edit_offset',
-            REASONING_EDIT_RIGHT_INPUT: 'lightstyler_reasoning_edit_right',
+            EDIT_RIGHT_OFFSET_INPUT: 'lightstyler_edit_right_offset',
             AVATAR_RESET_BUTTON: 'lightstyler_reset_button',
             PERSONA_BANNER_POS_INPUT: 'lightstyler_persona_banner_pos',
             CHARACTER_BANNER_POS_INPUT: 'lightstyler_character_banner_pos',
@@ -67,8 +66,9 @@ jQuery(function () {
         CSS_VARS: {
             AVATAR_WIDTH: '--avatar-width',
             EDIT_OFFSET: '--edit-buttons-top-offset',
-            REASONING_EDIT_OFFSET: '--reasoning-edit-actions-offset',
-            REASONING_EDIT_RIGHT: '--reasoning-edit-button-right',
+            EDIT_RIGHT_OFFSET: '--edit-buttons-right-offset',
+            REASONING_TOP_COMPENSATION: '--reasoning-edit-top-compensation',
+            REASONING_RIGHT_COMPENSATION: '--reasoning-edit-right-compensation',
             PERSONA_BANNER: '--persona-banner-pos',
             CHARACTER_BANNER: '--character-banner-pos',
             MESSAGE_AVATAR_URL: '--mes-avatar-url',
@@ -81,12 +81,14 @@ jQuery(function () {
         avatarMode: 'large',
         avatar_width_large: 304,
         edit_offset_large: 390,
-        reasoning_edit_offset_large: 290,
-        reasoning_edit_right_large: -15,
+        edit_right_offset_large: 25,
+        reasoning_top_compensation_large: -100,
+        reasoning_right_compensation_large: -40,
         avatar_width_small: 70,
         edit_offset_small: 90,
-        reasoning_edit_offset_small: 20,
-        reasoning_edit_right_small: 15,
+        edit_right_offset_small: 25,
+        reasoning_top_compensation_small: -70,
+        reasoning_right_compensation_small: -10,
         personaBannerPos: 15,
         characterBannerPos: 27,
         // Per-character settings storage
@@ -533,8 +535,7 @@ jQuery(function () {
             const elementIds = {
                 avatarWidth: CONSTANTS.DOM.AVATAR_WIDTH_INPUT,
                 editOffset: CONSTANTS.DOM.EDIT_OFFSET_INPUT,
-                reasoningEditOffset: CONSTANTS.DOM.REASONING_EDIT_OFFSET_INPUT,
-                reasoningEditRight: CONSTANTS.DOM.REASONING_EDIT_RIGHT_INPUT,
+                editRightOffset: CONSTANTS.DOM.EDIT_RIGHT_OFFSET_INPUT,
                 personaBannerPos: CONSTANTS.DOM.PERSONA_BANNER_POS_INPUT,
                 characterBannerPos: CONSTANTS.DOM.CHARACTER_BANNER_POS_INPUT,
             };
@@ -542,10 +543,20 @@ jQuery(function () {
             const elements = Utils.getElements(elementIds);
             if (Object.keys(elements).length !== Object.keys(elementIds).length) return;
 
+            // Get current avatar mode for compensation values
+            const settings = Utils.getSettings();
+            const mode = settings.avatarMode;
+
             document.documentElement.style.setProperty(CONSTANTS.CSS_VARS.AVATAR_WIDTH, `${elements.avatarWidth.value}px`);
             document.documentElement.style.setProperty(CONSTANTS.CSS_VARS.EDIT_OFFSET, `${elements.editOffset.value}px`);
-            document.documentElement.style.setProperty(CONSTANTS.CSS_VARS.REASONING_EDIT_OFFSET, `${elements.reasoningEditOffset.value}px`);
-            document.documentElement.style.setProperty(CONSTANTS.CSS_VARS.REASONING_EDIT_RIGHT, `${elements.reasoningEditRight.value}px`);
+            document.documentElement.style.setProperty(CONSTANTS.CSS_VARS.EDIT_RIGHT_OFFSET, `${elements.editRightOffset.value}px`);
+            
+            // Apply reasoning edit button compensation based on avatar mode
+            const topCompensation = settings[`reasoning_top_compensation_${mode}`] ?? DEFAULT_SETTINGS[`reasoning_top_compensation_${mode}`];
+            const rightCompensation = settings[`reasoning_right_compensation_${mode}`] ?? DEFAULT_SETTINGS[`reasoning_right_compensation_${mode}`];
+            document.documentElement.style.setProperty(CONSTANTS.CSS_VARS.REASONING_TOP_COMPENSATION, `${topCompensation}px`);
+            document.documentElement.style.setProperty(CONSTANTS.CSS_VARS.REASONING_RIGHT_COMPENSATION, `${rightCompensation}px`);
+            
             document.documentElement.style.setProperty(CONSTANTS.CSS_VARS.PERSONA_BANNER, `${elements.personaBannerPos.value}%`);
             document.documentElement.style.setProperty(CONSTANTS.CSS_VARS.CHARACTER_BANNER, `${elements.characterBannerPos.value}%`);
         },
@@ -789,8 +800,7 @@ jQuery(function () {
                 smallModeRadio: CONSTANTS.DOM.SMALL_MODE_RADIO,
                 avatarWidthInput: CONSTANTS.DOM.AVATAR_WIDTH_INPUT,
                 editOffsetInput: CONSTANTS.DOM.EDIT_OFFSET_INPUT,
-                reasoningEditOffsetInput: CONSTANTS.DOM.REASONING_EDIT_OFFSET_INPUT,
-                reasoningEditRightInput: CONSTANTS.DOM.REASONING_EDIT_RIGHT_INPUT,
+                editRightOffsetInput: CONSTANTS.DOM.EDIT_RIGHT_OFFSET_INPUT,
                 resetButton: CONSTANTS.DOM.AVATAR_RESET_BUTTON,
                 personaBannerPosInput: CONSTANTS.DOM.PERSONA_BANNER_POS_INPUT,
                 characterBannerPosInput: CONSTANTS.DOM.CHARACTER_BANNER_POS_INPUT,
@@ -834,8 +844,7 @@ jQuery(function () {
                 const mode = document.querySelector(CONSTANTS.DOM.AVATAR_MODE_RADIO_CHECKED).value;
                 settings[`avatar_width_${mode}`] = DEFAULT_SETTINGS[`avatar_width_${mode}`];
                 settings[`edit_offset_${mode}`] = DEFAULT_SETTINGS[`edit_offset_${mode}`];
-                settings[`reasoning_edit_offset_${mode}`] = DEFAULT_SETTINGS[`reasoning_edit_offset_${mode}`];
-                settings[`reasoning_edit_right_${mode}`] = DEFAULT_SETTINGS[`reasoning_edit_right_${mode}`];
+                settings[`edit_right_offset_${mode}`] = DEFAULT_SETTINGS[`edit_right_offset_${mode}`];
                 saveSettingsDebounced();
                 this.applyMode(elements, mode);
                 ThemeManager.updateStyles();
@@ -869,11 +878,8 @@ jQuery(function () {
             elements.editOffsetInput.addEventListener("input", 
                 Utils.createInputListener(() => `edit_offset_${Utils.getSettings().avatarMode}`));
             
-            elements.reasoningEditOffsetInput.addEventListener("input", 
-                Utils.createInputListener(() => `reasoning_edit_offset_${Utils.getSettings().avatarMode}`));
-            
-            elements.reasoningEditRightInput.addEventListener("input", 
-                Utils.createInputListener(() => `reasoning_edit_right_${Utils.getSettings().avatarMode}`));
+            elements.editRightOffsetInput.addEventListener("input", 
+                Utils.createInputListener(() => `edit_right_offset_${Utils.getSettings().avatarMode}`));
             
             elements.personaBannerPosInput.addEventListener("input", 
                 Utils.createInputListener('personaBannerPos'));
@@ -889,8 +895,7 @@ jQuery(function () {
             const settings = Utils.getSettings();
             elements.avatarWidthInput.value = settings[`avatar_width_${mode}`] ?? DEFAULT_SETTINGS[`avatar_width_${mode}`];
             elements.editOffsetInput.value = settings[`edit_offset_${mode}`] ?? DEFAULT_SETTINGS[`edit_offset_${mode}`];
-            elements.reasoningEditOffsetInput.value = settings[`reasoning_edit_offset_${mode}`] ?? DEFAULT_SETTINGS[`reasoning_edit_offset_${mode}`];
-            elements.reasoningEditRightInput.value = settings[`reasoning_edit_right_${mode}`] ?? DEFAULT_SETTINGS[`reasoning_edit_right_${mode}`];
+            elements.editRightOffsetInput.value = settings[`edit_right_offset_${mode}`] ?? DEFAULT_SETTINGS[`edit_right_offset_${mode}`];
         },
 
         /**
