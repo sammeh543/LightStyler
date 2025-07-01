@@ -1,6 +1,6 @@
 /*
 ================================================================================
-  MODERN & DYNAMIC MESSAGE LAYOUT v22 by AI Archaea
+  MODERN & DYNAMIC MESSAGE LAYOUT v23 by AI Archaea
 ================================================================================
   AUTHORS: AI Archaea & AI Assistant(Gemini Pro 2.5)
   LAST UPDATED: June 30, 2025
@@ -13,6 +13,7 @@
   - Support for reasoning blocks without button overlap
   - State-aware reasoning block styling (edit/view/closed states)
   - Independent positioning controls for all reasoning elements
+  - Dynamic reasoning edit button positioning based on avatar size
 ================================================================================
 */
 
